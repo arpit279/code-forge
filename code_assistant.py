@@ -1,6 +1,5 @@
-import os
+import ast
 from pathlib import Path
-import json
 import click
 import ollama
 
@@ -14,6 +13,27 @@ def ask_llm(prompt: str, model: str) -> str:
         return response.get("response", "")
     except Exception as exc:
         return f"Error communicating with Ollama: {exc}"
+
+
+def _summarise_python_file(path: Path) -> str:
+    """Create a brief summary of a Python file."""
+    try:
+        source = path.read_text(encoding="utf-8")
+        tree = ast.parse(source)
+    except Exception:
+        return "Could not parse file"
+
+    parts = []
+    doc = ast.get_docstring(tree)
+    if doc:
+        parts.append(doc.splitlines()[0])
+    classes = [n.name for n in tree.body if isinstance(n, ast.ClassDef)]
+    funcs = [n.name for n in tree.body if isinstance(n, ast.FunctionDef)]
+    if classes:
+        parts.append("classes: " + ", ".join(classes))
+    if funcs:
+        parts.append("functions: " + ", ".join(funcs))
+    return "; ".join(parts)
 
 
 @click.group()
@@ -37,19 +57,20 @@ def describe(ctx):
     model = ctx.obj["MODEL"]
 
     readme = path / "README.md"
-    snippet = ""
-    if readme.exists():
-        snippet = readme.read_text(encoding="utf-8")[:400]
+    snippet = readme.read_text(encoding="utf-8")[:400] if readme.exists() else ""
 
-    file_list = [
-        str(p.relative_to(path)) for p in path.glob("**/*") if p.is_file()
-    ][:50]
+    summaries = []
+    for py_file in sorted(path.rglob("*.py")):
+        summary = _summarise_python_file(py_file)
+        rel = py_file.relative_to(path)
+        summaries.append(f"{rel}: {summary}")
+
     prompt = (
-        "Provide a concise overview of this project based on the following README snippet "
-        "and file list.\n\nREADME:\n"
+        "Provide an overall description of this project using the README snippet "
+        "and summaries of each Python file.\n\nREADME:\n"
         + snippet
-        + "\n\nFiles:\n"
-        + json.dumps(file_list, indent=2)
+        + "\n\nFile summaries:\n"
+        + "\n".join(summaries)
     )
     summary = ask_llm(prompt, model)
     click.echo(summary)
