@@ -28,3 +28,17 @@ python code_assistant.py --path ./my_project enhance file.py
 # Ask the model to fix bugs in file.py using the "mistral" model
 python code_assistant.py --path ./my_project --model mistral fix file.py
 ```
+
+## Web Chat Application
+
+A browser-based chat interface is located in `web-app/`. It uses React to send messages directly to your local Ollama instance.
+
+To try it out, install the small `serve` dependency and launch the app:
+
+```bash
+cd web-app
+npm install
+npm start
+```
+
+Open `http://localhost:3000` (or the port printed by `serve`) and begin chatting. The app expects Ollama to be running on `http://localhost:11434` and uses the `llama3` model by default.
