@@ -111,8 +111,11 @@ function ChatApp() {
         <div className="messages">
           {messages.map((m, i) => (
             <div key={i} className={`message ${m.sender}`}>
-              {m.sender === 'user' ? 'You: ' : 'Bot: '}
-              {m.text}
+              <strong>{m.sender === 'user' ? 'You:' : 'Bot:'}</strong>
+              <span
+                className="msg-text"
+                dangerouslySetInnerHTML={{ __html: marked.parse(m.text) }}
+              />
             </div>
           ))}
         </div>

@@ -146,6 +146,14 @@ body.dark button:hover {
   width: fit-content;
 }
 
+.message strong {
+  margin-right: 6px;
+}
+
+.msg-text p {
+  margin: 0 0 0.5em 0;
+}
+
 .user {
   margin-left: auto;
   background-color: #0084ff;
@@ -181,4 +189,19 @@ body.dark .model-select select {
   background: #555;
   color: #fff;
   border-color: #777;
+}
+
+pre {
+  background: #f6f8fa;
+  padding: 10px;
+  border-radius: 4px;
+  overflow-x: auto;
+}
+
+body.dark pre {
+  background: #2d2d2d;
+}
+
+code {
+  font-family: Consolas, monospace;
 }
