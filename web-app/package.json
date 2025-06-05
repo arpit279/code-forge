@@ -1,0 +1,11 @@
+{
+  "name": "ollama-web-chat",
+  "version": "1.0.0",
+  "description": "React-based chat interface for local Ollama models",
+  "scripts": {
+    "start": "serve -s ."
+  },
+  "dependencies": {
+    "serve": "^14.2.0"
+  }
+}
