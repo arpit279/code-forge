@@ -33,6 +33,13 @@ python code_assistant.py --path ./my_project --model mistral fix file.py
 
 A browser-based chat interface is located in `web-app/`. It uses React to send messages directly to your local Ollama instance.
 
+To try it out, install the small `serve` dependency and launch the app:
+
+```bash
+cd web-app
+npm install
+npm start
+=======
 To try it out, start a simple static server from the repository root:
 
 ```bash
