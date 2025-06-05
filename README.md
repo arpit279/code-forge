@@ -39,6 +39,11 @@ To try it out, install the small `serve` dependency and launch the app:
 cd web-app
 npm install
 npm start
+=======
+To try it out, start a simple static server from the repository root:
+
+```bash
+npx serve web-app
 ```
 
 Open `http://localhost:3000` (or the port printed by `serve`) and begin chatting. The app expects Ollama to be running on `http://localhost:11434` and uses the `llama3` model by default.
