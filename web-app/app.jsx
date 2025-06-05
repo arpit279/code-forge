@@ -7,6 +7,7 @@ function ChatApp() {
   const [input, setInput] = React.useState('');
   const [models, setModels] = React.useState([]);
   const [model, setModel] = React.useState('llama3');
+  const [darkMode, setDarkMode] = React.useState(false);
   const inputRef = React.useRef(null);
 
   React.useEffect(() => {
@@ -27,6 +28,10 @@ function ChatApp() {
     }
     fetchModels();
   }, []);
+
+  React.useEffect(() => {
+    document.body.classList.toggle('dark', darkMode);
+  }, [darkMode]);
 
   const sendMessage = async () => {
     const text = input.trim();
@@ -99,6 +104,9 @@ function ChatApp() {
               ))}
             </select>
           </label>
+          <button className="mode-toggle" onClick={() => setDarkMode(!darkMode)}>
+            {darkMode ? 'Light Mode' : 'Dark Mode'}
+          </button>
         </div>
         <div className="messages">
           {messages.map((m, i) => (
