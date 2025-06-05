@@ -77,3 +77,13 @@ button:hover {
   background-color: #e5e5ea;
   color: #000;
 }
+
+.model-select {
+  margin-bottom: 10px;
+}
+
+.model-select select {
+  margin-left: 5px;
+  padding: 5px;
+  border-radius: 4px;
+}

@@ -12,4 +12,4 @@ npm install
 npm start
 ```
 
-Open the printed URL (typically `http://localhost:3000`) and begin chatting. The app expects Ollama to be running at `http://localhost:11434` and uses the `llama3` model by default.
+Open the printed URL (typically `http://localhost:3000`) and begin chatting. The app expects Ollama to be running at `http://localhost:11434`. Use the drop-down at the top of the page to choose from your locally installed models.
