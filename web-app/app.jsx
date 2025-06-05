@@ -37,7 +37,7 @@ function ChatApp() {
       const res = await fetch(API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model, prompt: text }),
+        body: JSON.stringify({ model, prompt: text, stream: false }),
       });
       const data = await res.json();
       const botMsg = { sender: 'bot', text: data.response || 'No response' };
