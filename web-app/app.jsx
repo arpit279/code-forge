@@ -74,7 +74,7 @@ function ChatApp() {
   const messages = conversations[current].messages;
 
   return (
-    <>
+    <React.Fragment>
       <div className="history">
         <button onClick={newChat}>New Chat</button>
         {conversations.map((c, i) => (
@@ -122,7 +122,7 @@ function ChatApp() {
           <button onClick={sendMessage}>Send</button>
         </div>
       </div>
-    </>
+    </React.Fragment>
   );
 }
 
