@@ -34,9 +34,10 @@ function ChatApp() {
     <div id="chat">
       <div className="messages">
         {messages.map((m, i) => (
-          <div key={i} className={`message ${m.sender}`}>{
-            m.sender === 'user' ? 'You: ' : 'Bot: '
-          }{m.text}</div>
+          <div key={i} className={`message ${m.sender}`}>
+            {m.sender === 'user' ? 'You: ' : 'Bot: '}
+            {m.text}
+          </div>
         ))}
       </div>
       <div className="input-row">

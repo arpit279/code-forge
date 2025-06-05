@@ -42,3 +42,15 @@ npm start
 ```
 
 Open `http://localhost:3000` (or the port printed by `serve`) and begin chatting. The app expects Ollama to be running on `http://localhost:11434` and uses the `llama3` model by default.
+
+### Ollama web chat via Flask
+
+Alternatively you can run a lightweight Flask server that offers a simple chat UI backed by Ollama.
+Install the dependencies and start the server:
+
+```bash
+pip install flask ollama
+python web_chat.py
+```
+
+This will launch the chat at `http://localhost:5000`.
