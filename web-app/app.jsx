@@ -2,7 +2,8 @@ const API_URL = 'http://localhost:11434/api/generate';
 const TAGS_URL = 'http://localhost:11434/api/tags';
 
 function ChatApp() {
-  const [messages, setMessages] = React.useState([]);
+  const [conversations, setConversations] = React.useState([{ id: 1, messages: [] }]);
+  const [current, setCurrent] = React.useState(0);
   const [input, setInput] = React.useState('');
   const [models, setModels] = React.useState([]);
   const [model, setModel] = React.useState('llama3');
@@ -31,7 +32,11 @@ function ChatApp() {
     const text = input.trim();
     if (!text) return;
     const userMsg = { sender: 'user', text };
-    setMessages((msgs) => [...msgs, userMsg]);
+    setConversations((cs) => {
+      const updated = [...cs];
+      updated[current].messages = [...updated[current].messages, userMsg];
+      return updated;
+    });
     setInput('');
     try {
       const res = await fetch(API_URL, {
@@ -41,52 +46,83 @@ function ChatApp() {
       });
       const data = await res.json();
       const botMsg = { sender: 'bot', text: data.response || 'No response' };
-      setMessages((msgs) => [...msgs, botMsg]);
+      setConversations((cs) => {
+        const updated = [...cs];
+        updated[current].messages = [...updated[current].messages, botMsg];
+        return updated;
+      });
     } catch (err) {
-      setMessages((msgs) => [
-        ...msgs,
-        { sender: 'bot', text: 'Error contacting Ollama: ' + err },
-      ]);
+      setConversations((cs) => {
+        const updated = [...cs];
+        updated[current].messages = [
+          ...updated[current].messages,
+          { sender: 'bot', text: 'Error contacting Ollama: ' + err },
+        ];
+        return updated;
+      });
     }
     inputRef.current.focus();
   };
 
+  const newChat = () => {
+    setConversations((cs) => [...cs, { id: cs.length + 1, messages: [] }]);
+    setCurrent(conversations.length);
+    setInput('');
+    inputRef.current.focus();
+  };
+
+  const messages = conversations[current].messages;
+
   return (
-    <div id="chat">
-      <div className="model-select">
-        <label>
-          Model:
-          <select value={model} onChange={(e) => setModel(e.target.value)}>
-            {models.map((m) => (
-              <option key={m} value={m}>
-                {m}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
-      <div className="messages">
-        {messages.map((m, i) => (
-          <div key={i} className={`message ${m.sender}`}>
-            {m.sender === 'user' ? 'You: ' : 'Bot: '}
-            {m.text}
+    <>
+      <div className="history">
+        <button onClick={newChat}>New Chat</button>
+        {conversations.map((c, i) => (
+          <div
+            key={c.id}
+            className={`history-item ${i === current ? 'active' : ''}`}
+            onClick={() => setCurrent(i)}
+          >
+            {`Chat ${c.id}`}
           </div>
         ))}
       </div>
-      <div className="input-row">
-        <input
-          type="text"
-          value={input}
-          ref={inputRef}
-          placeholder="Ask something..."
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') sendMessage();
-          }}
-        />
-        <button onClick={sendMessage}>Send</button>
+      <div id="chat">
+        <div className="model-select">
+          <label>
+            Model:
+            <select value={model} onChange={(e) => setModel(e.target.value)}>
+              {models.map((m) => (
+                <option key={m} value={m}>
+                  {m}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+        <div className="messages">
+          {messages.map((m, i) => (
+            <div key={i} className={`message ${m.sender}`}>
+              {m.sender === 'user' ? 'You: ' : 'Bot: '}
+              {m.text}
+            </div>
+          ))}
+        </div>
+        <div className="input-row">
+          <input
+            type="text"
+            value={input}
+            ref={inputRef}
+            placeholder="Ask something..."
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') sendMessage();
+            }}
+          />
+          <button onClick={sendMessage}>Send</button>
+        </div>
       </div>
-    </div>
+    </>
   );
 }
 

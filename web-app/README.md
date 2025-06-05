@@ -15,4 +15,6 @@ npm install
 npm start
 ```
 
-`npm start` launches a lightweight static server using the `serve` package. By default it prints a URL such as `http://localhost:3000` – open this in your browser to chat. A drop-down menu allows you to select from installed Ollama models. Messages are sent to the Ollama API at `http://localhost:11434`.
+`npm start` launches a lightweight static server using the `serve` package. By default it prints a URL such as `http://localhost:3000` – open this in your browser to chat.
+
+The left sidebar keeps a history of conversations. Click **New Chat** to start fresh or select any previous chat to review its messages. A drop-down menu lets you pick from installed Ollama models, and messages are sent to the Ollama API at `http://localhost:11434`.
