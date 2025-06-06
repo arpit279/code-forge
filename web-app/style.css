@@ -205,3 +205,29 @@ body.dark pre {
 code {
   font-family: Consolas, monospace;
 }
+
+.thinking-block {
+  margin-top: 6px;
+}
+
+.think-toggle {
+  background: transparent;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  padding: 0;
+  font-size: 0.9em;
+}
+
+.thinking {
+  margin-top: 4px;
+  padding: 8px;
+  border-left: 3px solid #ccc;
+  font-style: italic;
+  background: #f6f8fa;
+}
+
+body.dark .thinking {
+  background: #2d2d2d;
+  border-color: #777;
+}

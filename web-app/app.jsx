@@ -2,7 +2,9 @@ const API_URL = 'http://localhost:11434/api/generate';
 const TAGS_URL = 'http://localhost:11434/api/tags';
 
 function ChatApp() {
-  const [conversations, setConversations] = React.useState([{ id: 1, messages: [] }]);
+  const [conversations, setConversations] = React.useState([
+    { id: 1, messages: [] },
+  ]);
   const [current, setCurrent] = React.useState(0);
   const [input, setInput] = React.useState('');
   const [models, setModels] = React.useState([]);
@@ -50,7 +52,21 @@ function ChatApp() {
         body: JSON.stringify({ model, prompt: text, stream: false }),
       });
       const data = await res.json();
-      const botMsg = { sender: 'bot', text: data.response || 'No response' };
+      let responseText = data.response || 'No response';
+      const thinkParts = [];
+      const thinkRegex = /<think>([\s\S]*?)<\/think>/gi;
+      let m;
+      while ((m = thinkRegex.exec(responseText))) {
+        thinkParts.push(m[1].trim());
+      }
+      responseText = responseText.replace(thinkRegex, '').trim();
+
+      const botMsg = {
+        sender: 'bot',
+        text: responseText,
+        think: thinkParts.join('\n'),
+        showThink: false,
+      };
       setConversations((cs) => {
         const updated = [...cs];
         updated[current].messages = [...updated[current].messages, botMsg];
@@ -74,6 +90,16 @@ function ChatApp() {
     setCurrent(conversations.length);
     setInput('');
     inputRef.current.focus();
+  };
+
+  const toggleThink = (index) => {
+    setConversations((cs) => {
+      const updated = [...cs];
+      const msg = { ...updated[current].messages[index] };
+      msg.showThink = !msg.showThink;
+      updated[current].messages[index] = msg;
+      return updated;
+    });
   };
 
   const messages = conversations[current].messages;
@@ -116,6 +142,22 @@ function ChatApp() {
                 className="msg-text"
                 dangerouslySetInnerHTML={{ __html: marked.parse(m.text) }}
               />
+              {m.think && (
+                <div className="thinking-block">
+                  <button
+                    className="think-toggle"
+                    onClick={() => toggleThink(i)}
+                  >
+                    {m.showThink ? 'Hide \u25B2' : 'Show \u25BC'}
+                  </button>
+                  {m.showThink && (
+                    <div
+                      className="thinking"
+                      dangerouslySetInnerHTML={{ __html: marked.parse(m.think) }}
+                    />
+                  )}
+                </div>
+              )}
             </div>
           ))}
         </div>
