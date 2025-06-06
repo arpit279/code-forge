@@ -10,6 +10,7 @@ function ChatApp() {
   const [models, setModels] = React.useState([]);
   const [model, setModel] = React.useState('llama3');
   const [darkMode, setDarkMode] = React.useState(false);
+  const [attachments, setAttachments] = React.useState([]);
   const inputRef = React.useRef(null);
 
   React.useEffect(() => {
@@ -37,8 +38,12 @@ function ChatApp() {
 
   const sendMessage = async () => {
     const text = input.trim();
-    if (!text) return;
-    const userMsg = { sender: 'user', text };
+    if (!text && attachments.length === 0) return;
+    const fileText = attachments
+      .map((f) => `\n[File: ${f.name}]\n${f.data}`)
+      .join('\n');
+    const prompt = text + fileText;
+    const userMsg = { sender: 'user', text, attachments: attachments.map(a => a.name) };
     setConversations((cs) => {
       const updated = [...cs];
       updated[current].messages = [...updated[current].messages, userMsg];
@@ -49,7 +54,7 @@ function ChatApp() {
       const res = await fetch(API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model, prompt: text, stream: false }),
+        body: JSON.stringify({ model, prompt, stream: false }),
       });
       const data = await res.json();
       let responseText = data.response || 'No response';
@@ -82,6 +87,7 @@ function ChatApp() {
         return updated;
       });
     }
+    setAttachments([]);
     inputRef.current.focus();
   };
 
@@ -90,6 +96,22 @@ function ChatApp() {
     setCurrent(conversations.length);
     setInput('');
     inputRef.current.focus();
+  };
+
+  const handleFiles = (e) => {
+    const files = Array.from(e.target.files);
+    const promises = files.map((file) =>
+      new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = () =>
+          resolve({ name: file.name, data: reader.result.split(',')[1] });
+        reader.readAsDataURL(file);
+      })
+    );
+    Promise.all(promises).then((res) =>
+      setAttachments((prev) => [...prev, ...res])
+    );
+    e.target.value = '';
   };
 
   const toggleThink = (index) => {
@@ -142,6 +164,13 @@ function ChatApp() {
                 className="msg-text"
                 dangerouslySetInnerHTML={{ __html: marked.parse(m.text) }}
               />
+              {m.attachments && m.attachments.length > 0 && (
+                <div className="msg-files">
+                  {m.attachments.map((a, j) => (
+                    <div key={j} className="msg-file">{a}</div>
+                  ))}
+                </div>
+              )}
               {m.think && (
                 <div className="thinking-block">
                   <button
@@ -162,6 +191,10 @@ function ChatApp() {
           ))}
         </div>
         <div className="input-row">
+          <label className="attach-button">
+            📎
+            <input type="file" multiple onChange={handleFiles} style={{ display: 'none' }} />
+          </label>
           <input
             type="text"
             value={input}
@@ -174,6 +207,13 @@ function ChatApp() {
           />
           <button onClick={sendMessage}>Send</button>
         </div>
+        {attachments.length > 0 && (
+          <div className="attachment-list">
+            {attachments.map((a, idx) => (
+              <span key={idx} className="attachment-item">{a.name}</span>
+            ))}
+          </div>
+        )}
       </div>
     </React.Fragment>
   );

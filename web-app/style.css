@@ -231,3 +231,45 @@ body.dark .thinking {
   background: #2d2d2d;
   border-color: #777;
 }
+
+.attach-button {
+  display: flex;
+  align-items: center;
+  margin-right: 8px;
+  cursor: pointer;
+}
+
+.attachment-list {
+  margin-top: 5px;
+}
+
+.attachment-item {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 2px 4px;
+  background: #e0e0e0;
+  border-radius: 4px;
+  font-size: 0.8em;
+}
+
+body.dark .attachment-item {
+  background: #555;
+  color: #fff;
+}
+
+.msg-files {
+  margin-top: 4px;
+}
+
+.msg-file {
+  font-size: 0.8em;
+  background: #f0f0f0;
+  padding: 2px 4px;
+  border-radius: 4px;
+  margin-right: 4px;
+}
+
+body.dark .msg-file {
+  background: #555;
+  color: #fff;
+}
