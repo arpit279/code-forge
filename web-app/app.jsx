@@ -1,5 +1,9 @@
 const API_URL = 'http://localhost:11434/api/generate';
 const TAGS_URL = 'http://localhost:11434/api/tags';
+if (window.pdfjsLib) {
+  pdfjsLib.GlobalWorkerOptions.workerSrc =
+    'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+}
 
 function ChatApp() {
   const [conversations, setConversations] = React.useState([
@@ -98,19 +102,34 @@ function ChatApp() {
     inputRef.current.focus();
   };
 
-  const handleFiles = (e) => {
+  const handleFiles = async (e) => {
     const files = Array.from(e.target.files);
-    const promises = files.map((file) =>
-      new Promise((resolve) => {
-        const reader = new FileReader();
-        reader.onload = () =>
-          resolve({ name: file.name, data: reader.result.split(',')[1] });
-        reader.readAsDataURL(file);
+    const processed = await Promise.all(
+      files.map(async (file) => {
+        if (file.type === 'application/pdf') {
+          const buffer = await file.arrayBuffer();
+          const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
+          let text = '';
+          for (let i = 1; i <= pdf.numPages; i++) {
+            const page = await pdf.getPage(i);
+            const content = await page.getTextContent();
+            text += content.items.map((it) => it.str).join(' ') + '\n';
+          }
+          return { name: file.name, data: text };
+        } else if (file.type.startsWith('text/')) {
+          const text = await file.text();
+          return { name: file.name, data: text };
+        } else {
+          const dataUrl = await new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.readAsDataURL(file);
+          });
+          return { name: file.name, data: dataUrl };
+        }
       })
     );
-    Promise.all(promises).then((res) =>
-      setAttachments((prev) => [...prev, ...res])
-    );
+    setAttachments((prev) => [...prev, ...processed]);
     e.target.value = '';
   };
 
