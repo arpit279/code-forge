@@ -1,13 +1,14 @@
 # Ollama Web Chat App
 
-This folder contains a minimal React application that communicates with a local Ollama model. React and Babel are loaded from a CDN, so no build step is required.
+This folder contains a React application that communicates with a local Ollama model.
+React and Babel are loaded from CDNs so no build step is required.
 
 ## Prerequisites
 - Node.js and npm must be installed
 - An Ollama model running locally at `http://localhost:11434`
 
 ## Setup and Running
-Install the dependencies (just the static server) and start the app:
+Install dependencies and start the bundled server:
 
 ```bash
 cd web-app
@@ -15,18 +16,30 @@ npm install
 npm start
 ```
 
-`npm start` launches a lightweight static server using the `serve` package. By default it prints a URL such as `http://localhost:3000` – open this in your browser to chat.
+`npm start` launches a small Express server that serves the static files and
+manages the `mcp-config.json` file in the project root. By default it prints a
+URL such as `http://localhost:3000` – open this in your browser to chat.
 
-The left sidebar keeps a history of conversations. Click **New Chat** to start fresh or select any previous chat to review its messages. A drop-down menu lets you pick from installed Ollama models, and messages are sent to the Ollama API at `http://localhost:11434`. Use the toggle next to the selector to switch between light and dark modes. If a model returns text wrapped in `<think>` tags, it is hidden by default; press the arrow on a response to show or hide that reasoning. Upload files with the paperclip icon beside the input box to include them in your prompt. PDF files are converted to text in the browser so you can ask questions about them.
-MCP servers can be registered from the gear icon in the header. Paste a JSON configuration and the tools will appear below the model selector. An example configuration might be:
+The left sidebar keeps a history of conversations. Click **New Chat** to start a
+fresh one or select a previous chat to review it. A drop-down menu lets you pick
+from installed Ollama models. Use the toggle next to the selector to switch
+between light and dark modes. Attach files with the paperclip icon; PDFs are
+converted to text in the browser.
+
+Press the gear icon to manage MCP servers. The dialog shows the current servers
+and allows you to add, edit or remove entries. The configuration is stored in
+`mcp-config.json` and tools from enabled servers appear below the model
+selector.
+
+Example entry for `mcp-config.json`:
 
 ```json
 {
-  "mcpServers": {
-    "salesforce": {
-      "command": "/path/to/python",
-      "args": ["/path/to/salesforce-mcp-connector/main.py"]
-    }
-  }
+  "name": "salesforce",
+  "url": "http://localhost:8080",
+  "command": "/path/to/python",
+  "args": ["/path/to/salesforce-mcp-connector/main.py"],
+  "tools": ["query"],
+  "enabled": true
 }
 ```

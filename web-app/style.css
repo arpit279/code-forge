@@ -344,3 +344,19 @@ body.dark .modal {
 .modal-buttons button {
   margin-left: 8px;
 }
+
+.server-list {
+  margin-bottom: 10px;
+}
+
+.server-item {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.server-item button {
+  margin-left: 6px;
+  padding: 2px 6px;
+  font-size: 0.8em;
+}

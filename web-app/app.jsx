@@ -18,14 +18,9 @@ function ChatApp() {
   const [mcpModalOpen, setMcpModalOpen] = React.useState(false);
   const [mcpJson, setMcpJson] = React.useState('');
   const [mcpError, setMcpError] = React.useState('');
-  const [mcpServers, setMcpServers] = React.useState(() => {
-    const saved = localStorage.getItem('mcpServers');
-    return saved ? JSON.parse(saved) : [];
-  });
-  const [tools, setTools] = React.useState(() => {
-    const saved = localStorage.getItem('mcpTools');
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [mcpServers, setMcpServers] = React.useState([]);
+  const [tools, setTools] = React.useState([]);
+  const [editing, setEditing] = React.useState(null);
   const editorRef = React.useRef(null);
   const inputRef = React.useRef(null);
 
@@ -46,31 +41,44 @@ function ChatApp() {
       }
     }
     fetchModels();
+
+    async function fetchMcp() {
+      try {
+        const res = await fetch('/api/mcp-config');
+        const data = await res.json();
+        if (data.servers) {
+          setMcpServers(data.servers);
+          const serverTools = data.servers.flatMap(s => s.tools || []);
+          setTools(serverTools);
+        }
+      } catch (err) {
+        console.error('Failed to load MCP config', err);
+      }
+    }
+    fetchMcp();
   }, []);
 
   React.useEffect(() => {
     document.body.classList.toggle('dark', darkMode);
   }, [darkMode]);
 
-  const addMcpServer = () => {
+  const addMcpServer = async () => {
     try {
-      const cfg = JSON.parse(mcpJson);
-      if (!cfg.mcpServers || typeof cfg.mcpServers !== 'object') {
-        throw new Error('Configuration must include "mcpServers"');
-      }
-      const entries = Object.entries(cfg.mcpServers).map(([name, data]) => {
-        if (!data.command) throw new Error(`Missing command for ${name}`);
-        return { name, ...data };
+      const obj = JSON.parse(mcpJson);
+      if (!obj.name) throw new Error('Server entry must include a name');
+      const res = await fetch('/api/mcp-config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(obj),
       });
-      const serverTools = entries.flatMap((e) => e.tools || []);
-      const newServers = [...mcpServers, ...entries];
-      const newTools = [...tools, ...serverTools];
-      setMcpServers(newServers);
-      setTools(newTools);
-      localStorage.setItem('mcpServers', JSON.stringify(newServers));
-      localStorage.setItem('mcpTools', JSON.stringify(newTools));
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      setMcpServers(data.servers);
+      const serverTools = data.servers.flatMap(s => s.tools || []);
+      setTools(serverTools);
       setMcpJson('');
       setMcpError('');
+      setEditing(null);
       setMcpModalOpen(false);
     } catch (err) {
       setMcpError(err.message);
@@ -162,6 +170,25 @@ function ChatApp() {
     setCurrent(conversations.length);
     setInput('');
     inputRef.current.focus();
+  };
+
+  const deleteMcpServer = async (name) => {
+    try {
+      const res = await fetch(`/api/mcp-config/${name}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      setMcpServers(data.servers);
+      const serverTools = data.servers.flatMap(s => s.tools || []);
+      setTools(serverTools);
+    } catch (err) {
+      alert('Failed to delete: ' + err.message);
+    }
+  };
+
+  const startEdit = (srv) => {
+    setEditing(srv.name);
+    setMcpJson(JSON.stringify(srv, null, 2));
+    setMcpModalOpen(true);
   };
 
   const handleFiles = async (e) => {
@@ -308,17 +335,26 @@ function ChatApp() {
         {mcpModalOpen && (
           <div className="modal-overlay">
             <div className="modal">
-              <h2>Add MCP Server</h2>
+              <h2>MCP Server Configuration</h2>
+              <div className="server-list">
+                {mcpServers.map((s) => (
+                  <div key={s.name} className="server-item">
+                    <span>{s.name}</span>
+                    <button onClick={() => startEdit(s)}>Edit</button>
+                    <button onClick={() => deleteMcpServer(s.name)}>Delete</button>
+                  </div>
+                ))}
+              </div>
               <textarea
                 ref={editorRef}
                 defaultValue={mcpJson}
                 onChange={handleMcpJsonChange}
-                placeholder='{"mcpServers":{"salesforce":{"command":"/path/to/python","args":["/path/to/salesforce-mcp-connector/main.py"]}}}'
+                placeholder='{"name":"salesforce","command":"/path/to/python","args":["/path/to/main.py"],"tools":[],"enabled":true}'
               />
               {mcpError && <div className="error">{mcpError}</div>}
               <div className="modal-buttons">
-                <button onClick={addMcpServer}>Submit</button>
-                <button onClick={() => { setMcpModalOpen(false); setMcpJson(''); setMcpError(''); }}>Cancel</button>
+                <button onClick={addMcpServer}>{editing ? 'Save Changes' : 'Add Server'}</button>
+                <button onClick={() => { setMcpModalOpen(false); setMcpJson(''); setEditing(null); setMcpError(''); }}>Cancel</button>
               </div>
             </div>
           </div>
