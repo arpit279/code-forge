@@ -18,12 +18,12 @@ Click the gear icon to register MCP servers using JSON. Tools from these servers
 
 ```json
 {
-  "name": "Local MCP",
-  "url": "http://localhost:8080/mcp",
-  "tools": [
-    {"name": "weather"},
-    {"name": "calculator"}
-  ]
+  "mcpServers": {
+    "salesforce": {
+      "command": "/path/to/python",
+      "args": ["/path/to/salesforce-mcp-connector/main.py"]
+    }
+  }
 }
 ```
 

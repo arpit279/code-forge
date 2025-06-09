@@ -55,9 +55,15 @@ function ChatApp() {
   const addMcpServer = () => {
     try {
       const cfg = JSON.parse(mcpJson);
-      if (!cfg.name) throw new Error('Missing server name');
-      const serverTools = cfg.tools || [];
-      const newServers = [...mcpServers, cfg];
+      if (!cfg.mcpServers || typeof cfg.mcpServers !== 'object') {
+        throw new Error('Configuration must include "mcpServers"');
+      }
+      const entries = Object.entries(cfg.mcpServers).map(([name, data]) => {
+        if (!data.command) throw new Error(`Missing command for ${name}`);
+        return { name, ...data };
+      });
+      const serverTools = entries.flatMap((e) => e.tools || []);
+      const newServers = [...mcpServers, ...entries];
       const newTools = [...tools, ...serverTools];
       setMcpServers(newServers);
       setTools(newTools);
@@ -307,7 +313,7 @@ function ChatApp() {
                 ref={editorRef}
                 defaultValue={mcpJson}
                 onChange={handleMcpJsonChange}
-                placeholder='{"name":"My Server","tools":[{"name":"Tool1"}]}'
+                placeholder='{"mcpServers":{"salesforce":{"command":"/path/to/python","args":["/path/to/salesforce-mcp-connector/main.py"]}}}'
               />
               {mcpError && <div className="error">{mcpError}</div>}
               <div className="modal-buttons">

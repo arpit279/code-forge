@@ -22,11 +22,11 @@ MCP servers can be registered from the gear icon in the header. Paste a JSON con
 
 ```json
 {
-  "name": "Local MCP",
-  "url": "http://localhost:8080/mcp",
-  "tools": [
-    {"name": "weather"},
-    {"name": "calculator"}
-  ]
+  "mcpServers": {
+    "salesforce": {
+      "command": "/path/to/python",
+      "args": ["/path/to/salesforce-mcp-connector/main.py"]
+    }
+  }
 }
 ```
