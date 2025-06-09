@@ -15,6 +15,18 @@ function ChatApp() {
   const [model, setModel] = React.useState('llama3');
   const [darkMode, setDarkMode] = React.useState(false);
   const [attachments, setAttachments] = React.useState([]);
+  const [mcpModalOpen, setMcpModalOpen] = React.useState(false);
+  const [mcpJson, setMcpJson] = React.useState('');
+  const [mcpError, setMcpError] = React.useState('');
+  const [mcpServers, setMcpServers] = React.useState(() => {
+    const saved = localStorage.getItem('mcpServers');
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [tools, setTools] = React.useState(() => {
+    const saved = localStorage.getItem('mcpTools');
+    return saved ? JSON.parse(saved) : [];
+  });
+  const editorRef = React.useRef(null);
   const inputRef = React.useRef(null);
 
   React.useEffect(() => {
@@ -39,6 +51,50 @@ function ChatApp() {
   React.useEffect(() => {
     document.body.classList.toggle('dark', darkMode);
   }, [darkMode]);
+
+  const addMcpServer = () => {
+    try {
+      const cfg = JSON.parse(mcpJson);
+      if (!cfg.name) throw new Error('Missing server name');
+      const serverTools = cfg.tools || [];
+      const newServers = [...mcpServers, cfg];
+      const newTools = [...tools, ...serverTools];
+      setMcpServers(newServers);
+      setTools(newTools);
+      localStorage.setItem('mcpServers', JSON.stringify(newServers));
+      localStorage.setItem('mcpTools', JSON.stringify(newTools));
+      setMcpJson('');
+      setMcpError('');
+      setMcpModalOpen(false);
+    } catch (err) {
+      setMcpError(err.message);
+    }
+  };
+
+  const handleMcpJsonChange = (e) => {
+    const val = e.target.value;
+    setMcpJson(val);
+    try {
+      JSON.parse(val);
+      setMcpError('');
+    } catch (err) {
+      setMcpError(err.message);
+    }
+  };
+
+  React.useEffect(() => {
+    if (mcpModalOpen && editorRef.current) {
+      const cm = CodeMirror.fromTextArea(editorRef.current, {
+        mode: 'application/json',
+        lineNumbers: true,
+      });
+      cm.on('change', (cmInstance) => {
+        handleMcpJsonChange({ target: { value: cmInstance.getValue() } });
+      });
+      cm.setValue(mcpJson);
+      return () => cm.toTextArea();
+    }
+  }, [mcpModalOpen]);
 
   const sendMessage = async () => {
     const text = input.trim();
@@ -174,7 +230,17 @@ function ChatApp() {
           <button className="mode-toggle" onClick={() => setDarkMode(!darkMode)}>
             {darkMode ? 'Light Mode' : 'Dark Mode'}
           </button>
+          <button className="mcp-button" onClick={() => setMcpModalOpen(true)}>
+            ⚙
+          </button>
         </div>
+        {tools.length > 0 && (
+          <div className="tools-panel">
+            {tools.map((t, idx) => (
+              <span key={idx} className="tool">{t.name || t}</span>
+            ))}
+          </div>
+        )}
         <div className="messages">
           {messages.map((m, i) => (
             <div key={i} className={`message ${m.sender}`}>
@@ -231,6 +297,24 @@ function ChatApp() {
             {attachments.map((a, idx) => (
               <span key={idx} className="attachment-item">{a.name}</span>
             ))}
+          </div>
+        )}
+        {mcpModalOpen && (
+          <div className="modal-overlay">
+            <div className="modal">
+              <h2>Add MCP Server</h2>
+              <textarea
+                ref={editorRef}
+                defaultValue={mcpJson}
+                onChange={handleMcpJsonChange}
+                placeholder='{"name":"My Server","tools":[{"name":"Tool1"}]}'
+              />
+              {mcpError && <div className="error">{mcpError}</div>}
+              <div className="modal-buttons">
+                <button onClick={addMcpServer}>Submit</button>
+                <button onClick={() => { setMcpModalOpen(false); setMcpJson(''); setMcpError(''); }}>Cancel</button>
+              </div>
+            </div>
           </div>
         )}
       </div>

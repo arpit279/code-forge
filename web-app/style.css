@@ -179,6 +179,14 @@ body.dark .bot {
   margin-left: 10px;
 }
 
+.mcp-button {
+  margin-left: 10px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 1.2em;
+}
+
 .model-select select {
   margin-left: 5px;
   padding: 5px;
@@ -189,6 +197,24 @@ body.dark .model-select select {
   background: #555;
   color: #fff;
   border-color: #777;
+}
+
+.tools-panel {
+  margin-bottom: 10px;
+}
+
+.tool {
+  display: inline-block;
+  background: #e0e0e0;
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-right: 4px;
+  font-size: 0.8em;
+}
+
+body.dark .tool {
+  background: #555;
+  color: #fff;
 }
 
 pre {
@@ -272,4 +298,49 @@ body.dark .attachment-item {
 body.dark .msg-file {
   background: #555;
   color: #fff;
+}
+
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal {
+  background: #fff;
+  padding: 20px;
+  border-radius: 6px;
+  width: 400px;
+  max-width: 90%;
+}
+
+body.dark .modal {
+  background: #333;
+  color: #fff;
+}
+
+.modal textarea {
+  width: 100%;
+  height: 150px;
+}
+
+.modal .error {
+  color: red;
+  margin-top: 4px;
+}
+
+.modal-buttons {
+  margin-top: 10px;
+  text-align: right;
+}
+
+.modal-buttons button {
+  margin-left: 8px;
 }
