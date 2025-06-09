@@ -18,4 +18,15 @@ npm start
 `npm start` launches a lightweight static server using the `serve` package. By default it prints a URL such as `http://localhost:3000` – open this in your browser to chat.
 
 The left sidebar keeps a history of conversations. Click **New Chat** to start fresh or select any previous chat to review its messages. A drop-down menu lets you pick from installed Ollama models, and messages are sent to the Ollama API at `http://localhost:11434`. Use the toggle next to the selector to switch between light and dark modes. If a model returns text wrapped in `<think>` tags, it is hidden by default; press the arrow on a response to show or hide that reasoning. Upload files with the paperclip icon beside the input box to include them in your prompt. PDF files are converted to text in the browser so you can ask questions about them.
-MCP servers can be registered from the gear icon in the header. Paste a JSON configuration and the tools will appear below the model selector.
+MCP servers can be registered from the gear icon in the header. Paste a JSON configuration and the tools will appear below the model selector. An example configuration might be:
+
+```json
+{
+  "name": "Local MCP",
+  "url": "http://localhost:8080/mcp",
+  "tools": [
+    {"name": "weather"},
+    {"name": "calculator"}
+  ]
+}
+```
