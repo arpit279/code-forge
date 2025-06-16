@@ -350,6 +350,43 @@ app.delete('/api/mcp-config/:name', (req, res) => {
   }
 });
 
+// Function to communicate with MCP server
+async function communicateWithMcpServer(server, method, params = {}) {
+  if (server.command === 'npx' && server.args && server.args[0] === 'mcp-remote') {
+    // Handle mcp-remote pattern
+    const mcpUrl = server.args[1];
+    
+    try {
+      const response = await fetch(mcpUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json, text/event-stream',
+        },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: Date.now(),
+          method: method,
+          params: params
+        })
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
+      }
+      
+      const data = await response.json();
+      return data;
+    } catch (err) {
+      console.error(`MCP communication error: ${err.message}`);
+      throw err;
+    }
+  } else {
+    throw new Error('Unsupported MCP server configuration');
+  }
+}
+
 // New endpoint to get MCP tools for enabled servers
 app.get('/api/mcp-tools', async (req, res) => {
   try {
@@ -361,16 +398,17 @@ app.get('/api/mcp-tools', async (req, res) => {
     
     for (const [serverName, server] of enabledServers) {
       try {
-        // For now, we'll use a simplified tool discovery
-        // In a full implementation, you'd query the MCP server for available tools
-        if (server.tools && Array.isArray(server.tools)) {
-          server.tools.forEach(tool => {
+        // Query the MCP server for available tools
+        const toolsResponse = await communicateWithMcpServer(server, 'tools/list');
+        
+        if (toolsResponse.result && toolsResponse.result.tools) {
+          toolsResponse.result.tools.forEach(tool => {
             tools.push({
               type: "function",
               function: {
-                name: `${serverName}_${typeof tool === 'string' ? tool : tool.name}`,
-                description: `Tool from ${serverName} MCP server: ${typeof tool === 'string' ? tool : tool.description || tool.name}`,
-                parameters: {
+                name: `${serverName}_${tool.name}`,
+                description: tool.description || `Tool ${tool.name} from ${serverName} MCP server`,
+                parameters: tool.inputSchema || {
                   type: "object",
                   properties: {
                     query: {
@@ -384,31 +422,82 @@ app.get('/api/mcp-tools', async (req, res) => {
             });
           });
         } else {
-          // Default tool if no specific tools are defined
-          tools.push({
-            type: "function",
-            function: {
-              name: `${serverName}_execute`,
-              description: `Execute action using ${serverName} MCP server`,
-              parameters: {
-                type: "object",
-                properties: {
-                  action: {
-                    type: "string",
-                    description: "The action to perform"
-                  },
-                  query: {
-                    type: "string", 
-                    description: "The query or parameters for the action"
+          // Fallback: try to discover resources if tools not available
+          try {
+            const resourcesResponse = await communicateWithMcpServer(server, 'resources/list');
+            if (resourcesResponse.result && resourcesResponse.result.resources) {
+              // Create a generic tool for resource access
+              tools.push({
+                type: "function",
+                function: {
+                  name: `${serverName}_get_resource`,
+                  description: `Access resources from ${serverName} MCP server`,
+                  parameters: {
+                    type: "object",
+                    properties: {
+                      uri: {
+                        type: "string",
+                        description: "The resource URI to access"
+                      }
+                    },
+                    required: ["uri"]
                   }
-                },
-                required: ["action"]
-              }
+                }
+              });
             }
-          });
+          } catch (resourceErr) {
+            console.log(`No resources available from ${serverName}`);
+          }
+          
+          // If no tools or resources, create a default tool
+          if (tools.filter(t => t.function.name.startsWith(serverName)).length === 0) {
+            tools.push({
+              type: "function",
+              function: {
+                name: `${serverName}_execute`,
+                description: `Execute action using ${serverName} MCP server`,
+                parameters: {
+                  type: "object",
+                  properties: {
+                    action: {
+                      type: "string",
+                      description: "The action to perform"
+                    },
+                    arguments: {
+                      type: "object",
+                      description: "Arguments for the action"
+                    }
+                  },
+                  required: ["action"]
+                }
+              }
+            });
+          }
         }
       } catch (err) {
         console.error(`Error getting tools from ${serverName}:`, err);
+        // Add a fallback tool even if discovery fails
+        tools.push({
+          type: "function",
+          function: {
+            name: `${serverName}_execute`,
+            description: `Execute action using ${serverName} MCP server (discovery failed)`,
+            parameters: {
+              type: "object",
+              properties: {
+                action: {
+                  type: "string",
+                  description: "The action to perform"
+                },
+                arguments: {
+                  type: "object",
+                  description: "Arguments for the action"
+                }
+              },
+              required: ["action"]
+            }
+          }
+        });
       }
     }
     
@@ -423,8 +512,11 @@ app.post('/api/mcp-execute', async (req, res) => {
   try {
     const { toolName, parameters } = req.body;
     
-    // Extract server name from tool name
-    const serverName = toolName.split('_')[0];
+    // Extract server name and actual tool name
+    const parts = toolName.split('_');
+    const serverName = parts[0];
+    const actualToolName = parts.slice(1).join('_');
+    
     const cfg = readConfig();
     const server = cfg.mcpServers[serverName];
     
@@ -432,18 +524,95 @@ app.post('/api/mcp-execute', async (req, res) => {
       return res.status(404).json({ error: 'Server not found or disabled' });
     }
     
-    // For now, return a mock response
-    // In a full implementation, you'd call the actual MCP server
-    const result = {
-      success: true,
-      result: `Executed ${toolName} with parameters: ${JSON.stringify(parameters)}`,
-      serverName: serverName,
-      toolName: toolName
-    };
-    
-    res.json(result);
+    try {
+      let mcpResponse;
+      
+      if (actualToolName === 'get_resource') {
+        // Handle resource access
+        mcpResponse = await communicateWithMcpServer(server, 'resources/read', {
+          uri: parameters.uri
+        });
+      } else if (actualToolName === 'execute') {
+        // Handle generic execute calls - try to call the action as a tool
+        mcpResponse = await communicateWithMcpServer(server, 'tools/call', {
+          name: parameters.action,
+          arguments: parameters.arguments || {}
+        });
+      } else {
+        // Handle specific tool calls
+        mcpResponse = await communicateWithMcpServer(server, 'tools/call', {
+          name: actualToolName,
+          arguments: parameters
+        });
+      }
+      
+      const result = {
+        success: true,
+        result: mcpResponse.result || mcpResponse,
+        serverName: serverName,
+        toolName: toolName
+      };
+      
+      res.json(result);
+    } catch (mcpErr) {
+      console.error(`MCP execution error for ${toolName}:`, mcpErr);
+      res.json({
+        success: false,
+        error: `MCP execution failed: ${mcpErr.message}`,
+        serverName: serverName,
+        toolName: toolName
+      });
+    }
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// Debug endpoint to test MCP server communication
+app.post('/api/debug-mcp', async (req, res) => {
+  try {
+    const { url, method, params } = req.body;
+    
+    console.log(`Testing MCP call: ${method} to ${url}`);
+    console.log('Params:', params);
+    
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json, text/event-stream',
+      },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: Date.now(),
+        method: method,
+        params: params || {}
+      })
+    });
+    
+    console.log('Response status:', response.status);
+    console.log('Response headers:', Object.fromEntries(response.headers.entries()));
+    
+    const responseText = await response.text();
+    console.log('Response body:', responseText);
+    
+    let responseData;
+    try {
+      responseData = JSON.parse(responseText);
+    } catch (parseErr) {
+      responseData = { raw: responseText };
+    }
+    
+    res.json({
+      status: response.status,
+      headers: Object.fromEntries(response.headers.entries()),
+      data: responseData,
+      raw: responseText
+    });
+    
+  } catch (err) {
+    console.error('Debug MCP error:', err);
+    res.status(500).json({ error: err.message, stack: err.stack });
   }
 });
 
