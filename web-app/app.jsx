@@ -237,7 +237,12 @@ function ChatApp() {
   return (
     <React.Fragment>
       <div className="history">
-        <button onClick={newChat}>New Chat</button>
+        <div className="history-header">
+          <h3 className="history-title">History</h3>
+          <button className="new-chat-icon" onClick={newChat} title="New Chat">
+            📝
+          </button>
+        </div>
         {conversations.map((c, i) => (
           <div
             key={c.id}
