@@ -184,7 +184,8 @@ function ChatApp() {
         const updated = [...cs];
         // Remove thinking message if it exists and replace with actual response
         const messages = updated[current].messages;
-        if (shouldShowThinking && messages[messages.length - 1]?.isThinking) {
+        const lastMessage = messages[messages.length - 1];
+        if (shouldShowThinking && lastMessage && lastMessage.isThinking) {
           messages[messages.length - 1] = botMsg;
         } else {
           messages.push(botMsg);
@@ -198,7 +199,8 @@ function ChatApp() {
         
         // Remove thinking message if it exists and replace with error
         const messages = updated[current].messages;
-        if (shouldShowThinking && messages[messages.length - 1]?.isThinking) {
+        const lastMessage = messages[messages.length - 1];
+        if (shouldShowThinking && lastMessage && lastMessage.isThinking) {
           messages[messages.length - 1] = errorMsg;
         } else {
           messages.push(errorMsg);
