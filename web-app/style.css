@@ -462,14 +462,21 @@ body.dark .tool:hover {
   background: rgba(15, 118, 110, 0.2);
 }
 
+.code-block-wrapper {
+  position: relative;
+  margin: 12px 0;
+}
+
 pre {
   background: rgba(246, 248, 250, 0.8);
   padding: 16px;
+  padding-top: 20px; /* Make room for copy button */
   border-radius: 12px;
   overflow-x: auto;
   border: 1px solid rgba(0, 0, 0, 0.1);
   font-size: 14px;
   line-height: 1.4;
+  margin: 0; /* Remove default margin since wrapper handles it */
 }
 
 body.dark pre {
@@ -479,6 +486,49 @@ body.dark pre {
 
 code {
   font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+}
+
+.copy-code-button {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: none;
+  background: rgba(13, 148, 136, 0.1);
+  color: #0d9488;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  border: 1px solid rgba(13, 148, 136, 0.2);
+  backdrop-filter: blur(10px);
+  z-index: 10;
+}
+
+.copy-code-button:hover {
+  background: rgba(13, 148, 136, 0.2);
+  transform: scale(1.05);
+  box-shadow: 0 2px 8px rgba(13, 148, 136, 0.3);
+}
+
+.copy-code-button:active {
+  transform: scale(0.95);
+}
+
+body.dark .copy-code-button {
+  background: rgba(15, 118, 110, 0.15);
+  color: #14b8a6;
+  border-color: rgba(15, 118, 110, 0.3);
+}
+
+body.dark .copy-code-button:hover {
+  background: rgba(15, 118, 110, 0.25);
+  box-shadow: 0 2px 8px rgba(15, 118, 110, 0.4);
 }
 
 .thinking-block {

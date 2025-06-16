@@ -149,6 +149,73 @@ function ChatApp() {
     return title.length > 25 ? title.substring(0, 22) + '...' : title;
   };
 
+  const copyToClipboard = async (text, buttonElement) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      
+      // Visual feedback
+      const originalText = buttonElement.innerHTML;
+      buttonElement.innerHTML = '✓';
+      buttonElement.style.color = '#10b981';
+      
+      setTimeout(() => {
+        buttonElement.innerHTML = originalText;
+        buttonElement.style.color = '';
+      }, 2000);
+    } catch (err) {
+      console.error('Failed to copy text: ', err);
+    }
+  };
+
+  const addCopyButtons = (htmlString) => {
+    // Create a temporary div to parse HTML
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = htmlString;
+    
+    // Find all pre elements (code blocks)
+    const preElements = tempDiv.querySelectorAll('pre');
+    
+    preElements.forEach((pre, index) => {
+      // Create wrapper div for positioning
+      const wrapper = document.createElement('div');
+      wrapper.className = 'code-block-wrapper';
+      
+      // Create copy button
+      const copyButton = document.createElement('button');
+      copyButton.className = 'copy-code-button';
+      copyButton.innerHTML = '📋';
+      copyButton.title = 'Copy code';
+      copyButton.setAttribute('data-code-index', index);
+      
+      // Wrap the pre element
+      pre.parentNode.insertBefore(wrapper, pre);
+      wrapper.appendChild(pre);
+      wrapper.appendChild(copyButton);
+    });
+    
+    return tempDiv.innerHTML;
+  };
+
+  React.useEffect(() => {
+    // Add click listeners for copy buttons after messages update
+    const copyButtons = document.querySelectorAll('.copy-code-button');
+    copyButtons.forEach(button => {
+      const codeIndex = button.getAttribute('data-code-index');
+      const wrapper = button.parentElement;
+      const preElement = wrapper.querySelector('pre');
+      
+      if (preElement) {
+        const handleClick = () => {
+          const codeText = preElement.textContent || preElement.innerText;
+          copyToClipboard(codeText, button);
+        };
+        
+        button.removeEventListener('click', handleClick); // Remove existing listener
+        button.addEventListener('click', handleClick);
+      }
+    });
+  }, [conversations, current]); // Re-run when messages change
+
   const sendMessage = async () => {
     const text = input.trim();
     if (!text && attachments.length === 0) return;
@@ -396,7 +463,7 @@ function ChatApp() {
               ) : (
                 <span
                   className="msg-text"
-                  dangerouslySetInnerHTML={{ __html: marked.parse(m.text) }}
+                  dangerouslySetInnerHTML={{ __html: addCopyButtons(marked.parse(m.text)) }}
                 />
               )}
               {m.attachments && m.attachments.length > 0 && (
@@ -417,7 +484,7 @@ function ChatApp() {
                   {m.showThink && (
                     <div
                       className="thinking"
-                      dangerouslySetInnerHTML={{ __html: marked.parse(m.think) }}
+                      dangerouslySetInnerHTML={{ __html: addCopyButtons(marked.parse(m.think)) }}
                     />
                   )}
                 </div>
