@@ -21,6 +21,8 @@ function ChatApp() {
   const [mcpServers, setMcpServers] = React.useState([]);
   const [tools, setTools] = React.useState([]);
   const [editing, setEditing] = React.useState(null);
+  const [mcpTesting, setMcpTesting] = React.useState(false);
+  const [connectionStatus, setConnectionStatus] = React.useState(null);
   const [isLoading, setIsLoading] = React.useState(false);
   const editorRef = React.useRef(null);
   const inputRef = React.useRef(null);
@@ -66,24 +68,53 @@ function ChatApp() {
 
   const addMcpServer = async () => {
     try {
+      setMcpTesting(true);
+      setMcpError('');
+      setConnectionStatus(null);
+      
       const obj = JSON.parse(mcpJson);
       if (!obj.name) throw new Error('Server entry must include a name');
+      
       const res = await fetch('/api/mcp-config', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(obj),
       });
+      
       const data = await res.json();
-      if (data.error) throw new Error(data.error);
+      
+      if (data.error) {
+        if (data.details) {
+          throw new Error(`${data.error}: ${data.details.join(', ')}`);
+        }
+        throw new Error(data.error);
+      }
+      
+      // Set connection status based on test results
+      if (data.connectionTest) {
+        setConnectionStatus({
+          success: data.connectionTest.success,
+          message: data.connectionTest.message || data.connectionTest.error,
+          serverName: obj.name
+        });
+      }
+      
       setMcpServers(data.servers);
       const serverTools = data.servers.flatMap(s => s.tools || []);
       setTools(serverTools);
       setMcpJson('');
       setMcpError('');
       setEditing(null);
-      setMcpModalOpen(false);
+      
+      // Only close modal if connection was successful or user wants to save anyway
+      if (data.connectionTest && data.connectionTest.success) {
+        setTimeout(() => setMcpModalOpen(false), 2000); // Show success message for 2 seconds
+      }
     } catch (err) {
       setMcpError(err.message);
+      setConnectionStatus(null);
+    } finally {
+      setMcpTesting(false);
     }
   };
 
@@ -352,6 +383,38 @@ function ChatApp() {
     }
   };
 
+  const testMcpServer = async (serverName) => {
+    try {
+      setMcpTesting(true);
+      const res = await fetch(`/api/mcp-config/${serverName}/test`, {
+        method: 'POST',
+      });
+      const data = await res.json();
+      
+      if (data.error) throw new Error(data.error);
+      
+      setConnectionStatus({
+        success: data.connectionTest.success,
+        message: data.connectionTest.message || data.connectionTest.error,
+        serverName: serverName
+      });
+      
+      // Refresh server list to show updated status
+      const configRes = await fetch('/api/mcp-config');
+      const configData = await configRes.json();
+      setMcpServers(configData.servers);
+      
+    } catch (err) {
+      setConnectionStatus({
+        success: false,
+        message: err.message,
+        serverName: serverName
+      });
+    } finally {
+      setMcpTesting(false);
+    }
+  };
+
   const startEdit = (srv) => {
     setEditing(srv.name);
     setMcpJson(JSON.stringify(srv, null, 2));
@@ -526,9 +589,29 @@ function ChatApp() {
               <div className="server-list">
                 {mcpServers.map((s) => (
                   <div key={s.name} className="server-item">
-                    <span>{s.name}</span>
-                    <button onClick={() => startEdit(s)}>Edit</button>
-                    <button onClick={() => deleteMcpServer(s.name)}>Delete</button>
+                    <div className="server-info">
+                      <span className="server-name">{s.name}</span>
+                      {s.connectionStatus && (
+                        <span className={`connection-status ${s.connectionStatus}`}>
+                          {s.connectionStatus === 'connected' ? '🟢' : '🔴'} 
+                          {s.connectionStatus}
+                        </span>
+                      )}
+                      {s.connectionMessage && (
+                        <span className="connection-message">{s.connectionMessage}</span>
+                      )}
+                    </div>
+                    <div className="server-actions">
+                      <button 
+                        onClick={() => testMcpServer(s.name)}
+                        disabled={mcpTesting}
+                        className="test-button"
+                      >
+                        {mcpTesting ? '⏳' : '🔄'} Test
+                      </button>
+                      <button onClick={() => startEdit(s)}>Edit</button>
+                      <button onClick={() => deleteMcpServer(s.name)}>Delete</button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -539,9 +622,42 @@ function ChatApp() {
                 placeholder='{"name":"salesforce","command":"/path/to/python","args":["/path/to/main.py"],"tools":[],"enabled":true}'
               />
               {mcpError && <div className="error">{mcpError}</div>}
+              {connectionStatus && (
+                <div className={`connection-feedback ${connectionStatus.success ? 'success' : 'error'}`}>
+                  {connectionStatus.success ? '✅' : '❌'} 
+                  <span className="status-message">
+                    {connectionStatus.serverName}: {connectionStatus.message}
+                  </span>
+                </div>
+              )}
               <div className="modal-buttons">
-                <button onClick={addMcpServer}>{editing ? 'Save Changes' : 'Add Server'}</button>
-                <button onClick={() => { setMcpModalOpen(false); setMcpJson(''); setEditing(null); setMcpError(''); }}>Cancel</button>
+                <button 
+                  onClick={addMcpServer}
+                  disabled={mcpTesting}
+                >
+                  {mcpTesting ? '⏳ Testing...' : (editing ? 'Save Changes' : 'Add Server')}
+                </button>
+                <button onClick={() => { 
+                  setMcpModalOpen(false); 
+                  setMcpJson(''); 
+                  setEditing(null); 
+                  setMcpError(''); 
+                  setConnectionStatus(null);
+                }}>Cancel</button>
+                {connectionStatus && !connectionStatus.success && (
+                  <button 
+                    onClick={() => {
+                      setMcpModalOpen(false);
+                      setMcpJson('');
+                      setEditing(null);
+                      setMcpError('');
+                      setConnectionStatus(null);
+                    }}
+                    className="save-anyway-button"
+                  >
+                    Save Anyway
+                  </button>
+                )}
               </div>
             </div>
           </div>

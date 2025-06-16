@@ -815,17 +815,141 @@ body.dark .modal textarea:focus {
 .server-item {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   margin-bottom: 8px;
   padding: 12px;
   background: rgba(13, 148, 136, 0.05);
   border-radius: 12px;
   border: 1px solid rgba(13, 148, 136, 0.1);
+  gap: 12px;
 }
 
 body.dark .server-item {
   background: rgba(15, 118, 110, 0.05);
   border-color: rgba(15, 118, 110, 0.1);
+}
+
+.server-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+}
+
+.server-name {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.connection-status {
+  font-size: 12px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.connection-status.connected {
+  color: #10b981;
+}
+
+.connection-status.failed {
+  color: #ef4444;
+}
+
+.connection-message {
+  font-size: 11px;
+  color: #64748b;
+  font-style: italic;
+}
+
+body.dark .connection-message {
+  color: #94a3b8;
+}
+
+.server-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.test-button {
+  padding: 4px 8px;
+  font-size: 12px;
+  font-weight: 500;
+  background: rgba(13, 148, 136, 0.1);
+  border: 1px solid rgba(13, 148, 136, 0.2);
+  color: #0d9488;
+}
+
+.test-button:hover {
+  background: rgba(13, 148, 136, 0.2);
+}
+
+body.dark .test-button {
+  background: rgba(15, 118, 110, 0.1);
+  border-color: rgba(15, 118, 110, 0.2);
+  color: #14b8a6;
+}
+
+body.dark .test-button:hover {
+  background: rgba(15, 118, 110, 0.2);
+}
+
+.connection-feedback {
+  margin-top: 12px;
+  padding: 12px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.connection-feedback.success {
+  background: rgba(16, 185, 129, 0.1);
+  border: 1px solid rgba(16, 185, 129, 0.2);
+  color: #10b981;
+}
+
+.connection-feedback.error {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  color: #ef4444;
+}
+
+body.dark .connection-feedback.success {
+  background: rgba(16, 185, 129, 0.15);
+  border-color: rgba(16, 185, 129, 0.3);
+}
+
+body.dark .connection-feedback.error {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
+.status-message {
+  font-weight: 400;
+}
+
+.save-anyway-button {
+  background: rgba(239, 68, 68, 0.1) !important;
+  border: 1px solid rgba(239, 68, 68, 0.2) !important;
+  color: #ef4444 !important;
+}
+
+.save-anyway-button:hover {
+  background: rgba(239, 68, 68, 0.2) !important;
+}
+
+body.dark .save-anyway-button {
+  background: rgba(239, 68, 68, 0.15) !important;
+  border-color: rgba(239, 68, 68, 0.3) !important;
+}
+
+body.dark .save-anyway-button:hover {
+  background: rgba(239, 68, 68, 0.25) !important;
 }
 
 .server-item button {
