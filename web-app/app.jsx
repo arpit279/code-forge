@@ -73,7 +73,6 @@ function ChatApp() {
       setConnectionStatus(null);
       
       const obj = JSON.parse(mcpJson);
-      if (!obj.name) throw new Error('Server entry must include a name');
       
       const res = await fetch('/api/mcp-config', {
         method: 'POST',
