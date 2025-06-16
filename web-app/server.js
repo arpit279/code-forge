@@ -13,18 +13,36 @@ const PORT = 3000;
 
 function readConfig() {
   if (!fs.existsSync(CONFIG_PATH)) {
-    fs.writeFileSync(CONFIG_PATH, JSON.stringify({ servers: [] }, null, 2));
+    fs.writeFileSync(CONFIG_PATH, JSON.stringify({ mcpServers: {} }, null, 2));
   }
   const data = fs.readFileSync(CONFIG_PATH, 'utf8');
-  return JSON.parse(data);
+  const config = JSON.parse(data);
+  
+  // Convert old format to new format if needed
+  if (config.servers) {
+    config.mcpServers = {};
+    config.servers.forEach(server => {
+      const name = server.name;
+      delete server.name;
+      config.mcpServers[name] = server;
+    });
+    delete config.servers;
+    writeConfigDirect(config);
+  }
+  
+  return config;
 }
 
-function writeConfig(cfg) {
+function writeConfigDirect(cfg) {
   const backup = CONFIG_PATH + '.bak';
   if (fs.existsSync(CONFIG_PATH)) {
     fs.copyFileSync(CONFIG_PATH, backup);
   }
   fs.writeFileSync(CONFIG_PATH, JSON.stringify(cfg, null, 2));
+}
+
+function writeConfig(cfg) {
+  writeConfigDirect(cfg);
 }
 
 async function testMcpConnection(server) {
@@ -105,10 +123,10 @@ async function testMcpConnection(server) {
   });
 }
 
-function validateMcpServer(server) {
+function validateMcpServer(serverName, server) {
   const errors = [];
   
-  if (!server.name || typeof server.name !== 'string') {
+  if (!serverName || typeof serverName !== 'string') {
     errors.push('Server name is required');
   }
   
@@ -133,7 +151,13 @@ function validateMcpServer(server) {
 
 app.get('/api/mcp-config', (req, res) => {
   try {
-    res.json(readConfig());
+    const config = readConfig();
+    // Convert to array format for frontend compatibility
+    const servers = Object.entries(config.mcpServers || {}).map(([name, server]) => ({
+      name,
+      ...server
+    }));
+    res.json({ servers });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -142,10 +166,30 @@ app.get('/api/mcp-config', (req, res) => {
 app.post('/api/mcp-config', async (req, res) => {
   try {
     const cfg = readConfig();
-    const server = req.body;
+    const requestData = req.body;
+    
+    // Handle both formats: {name: "...", ...config} or {"serverName": {...config}}
+    let serverName, server;
+    
+    if (requestData.name) {
+      // Old format: {name: "serverName", url: "...", ...}
+      serverName = requestData.name;
+      server = { ...requestData };
+      delete server.name;
+    } else {
+      // New Claude Desktop format: {"serverName": {url: "...", ...}}
+      const keys = Object.keys(requestData);
+      if (keys.length !== 1) {
+        return res.status(400).json({ 
+          error: 'Invalid format. Expected either {name: "...", ...config} or {"serverName": {...config}}' 
+        });
+      }
+      serverName = keys[0];
+      server = requestData[serverName];
+    }
     
     // Validate server configuration
-    const validationErrors = validateMcpServer(server);
+    const validationErrors = validateMcpServer(serverName, server);
     if (validationErrors.length > 0) {
       return res.status(400).json({ 
         error: 'Validation failed', 
@@ -166,18 +210,23 @@ app.post('/api/mcp-config', async (req, res) => {
       server.enabled = connectionTest.success;
     }
     
-    const idx = cfg.servers.findIndex(s => s.name === server.name);
-    if (idx !== -1) {
-      cfg.servers[idx] = server;
-    } else {
-      cfg.servers.push(server);
+    // Store in Claude Desktop format
+    if (!cfg.mcpServers) {
+      cfg.mcpServers = {};
     }
+    cfg.mcpServers[serverName] = server;
     
     writeConfig(cfg);
     
+    // Convert back to array format for response
+    const servers = Object.entries(cfg.mcpServers).map(([name, srv]) => ({
+      name,
+      ...srv
+    }));
+    
     // Return config with connection test results
     res.json({
-      ...cfg,
+      servers,
       connectionTest: connectionTest
     });
   } catch (err) {
@@ -188,7 +237,8 @@ app.post('/api/mcp-config', async (req, res) => {
 app.post('/api/mcp-config/:name/test', async (req, res) => {
   try {
     const cfg = readConfig();
-    const server = cfg.servers.find(s => s.name === req.params.name);
+    const serverName = req.params.name;
+    const server = cfg.mcpServers[serverName];
     
     if (!server) {
       return res.status(404).json({ error: 'Server not found' });
@@ -204,7 +254,7 @@ app.post('/api/mcp-config/:name/test', async (req, res) => {
     writeConfig(cfg);
     
     res.json({
-      server: server,
+      server: { name: serverName, ...server },
       connectionTest: connectionTest
     });
   } catch (err) {
@@ -215,9 +265,20 @@ app.post('/api/mcp-config/:name/test', async (req, res) => {
 app.delete('/api/mcp-config/:name', (req, res) => {
   try {
     const cfg = readConfig();
-    cfg.servers = cfg.servers.filter(s => s.name !== req.params.name);
-    writeConfig(cfg);
-    res.json(cfg);
+    const serverName = req.params.name;
+    
+    if (cfg.mcpServers && cfg.mcpServers[serverName]) {
+      delete cfg.mcpServers[serverName];
+      writeConfig(cfg);
+    }
+    
+    // Convert to array format for response
+    const servers = Object.entries(cfg.mcpServers || {}).map(([name, server]) => ({
+      name,
+      ...server
+    }));
+    
+    res.json({ servers });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

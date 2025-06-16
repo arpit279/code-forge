@@ -619,7 +619,21 @@ function ChatApp() {
                 ref={editorRef}
                 defaultValue={mcpJson}
                 onChange={handleMcpJsonChange}
-                placeholder='{"name":"salesforce","command":"/path/to/python","args":["/path/to/main.py"],"tools":[],"enabled":true}'
+                placeholder='Examples:
+Claude Desktop format:
+{
+  "my-server": {
+    "url": "http://localhost:3000/mcp",
+    "enabled": true
+  }
+}
+
+Or simple format:
+{
+  "name": "my-server",
+  "url": "http://localhost:3000/mcp",
+  "enabled": true
+}'
               />
               {mcpError && <div className="error">{mcpError}</div>}
               {connectionStatus && (
