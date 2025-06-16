@@ -84,6 +84,51 @@ async function testMcpConnection(server) {
     // Test command-based connection
     else if (server.command) {
       try {
+        // Special handling for mcp-remote pattern
+        if (server.command === 'npx' && server.args && server.args[0] === 'mcp-remote') {
+          // Extract URL from mcp-remote args and test it
+          const mcpUrl = server.args[1];
+          if (mcpUrl && mcpUrl.startsWith('http')) {
+            try {
+              const url = new URL(mcpUrl);
+              const client = url.protocol === 'https:' ? https : http;
+              
+              const req = client.request({
+                hostname: url.hostname,
+                port: url.port || (url.protocol === 'https:' ? 443 : 80),
+                path: url.pathname || '/',
+                method: 'GET',
+                timeout: 4000
+              }, (res) => {
+                clearTimeout(timeout);
+                resolve({ 
+                  success: true, 
+                  message: `MCP remote server accessible at ${mcpUrl}` 
+                });
+              });
+
+              req.on('error', (err) => {
+                clearTimeout(timeout);
+                resolve({ 
+                  success: false, 
+                  error: `MCP remote server failed: ${err.message}` 
+                });
+              });
+
+              req.end();
+              return;
+            } catch (urlErr) {
+              clearTimeout(timeout);
+              resolve({ 
+                success: false, 
+                error: `Invalid URL in mcp-remote args: ${mcpUrl}` 
+              });
+              return;
+            }
+          }
+        }
+        
+        // General command testing
         const child = spawn(server.command, server.args || [], {
           stdio: ['pipe', 'pipe', 'pipe'],
           timeout: 3000
@@ -94,7 +139,7 @@ async function testMcpConnection(server) {
           child.kill();
           resolve({ 
             success: true, 
-            message: `Command executable: ${server.command}` 
+            message: `Command executable: ${server.command} ${(server.args || []).join(' ')}` 
           });
         });
 
@@ -138,8 +183,19 @@ function validateMcpServer(serverName, server) {
     errors.push('URL must start with http:// or https://');
   }
   
-  if (server.command && !fs.existsSync(server.command)) {
-    errors.push('Command path does not exist');
+  if (server.command) {
+    // Special handling for npx and common commands
+    const validCommands = ['npx', 'node', 'python', 'python3', 'uvx'];
+    const isValidCommand = validCommands.includes(server.command) || fs.existsSync(server.command);
+    
+    if (!isValidCommand) {
+      errors.push(`Command '${server.command}' not found. For npx commands, ensure npm is installed.`);
+    }
+    
+    // Validate args array if present
+    if (server.args && !Array.isArray(server.args)) {
+      errors.push('Args must be an array');
+    }
   }
   
   if (server.enabled !== undefined && typeof server.enabled !== 'boolean') {
@@ -168,20 +224,30 @@ app.post('/api/mcp-config', async (req, res) => {
     const cfg = readConfig();
     const requestData = req.body;
     
-    // Handle both formats: {name: "...", ...config} or {"serverName": {...config}}
+    // Handle multiple formats
     let serverName, server;
     
-    if (requestData.name) {
-      // Old format: {name: "serverName", url: "...", ...}
+    if (requestData.mcpServers) {
+      // Full Claude Desktop format: {"mcpServers": {"serverName": {...config}}}
+      const serverKeys = Object.keys(requestData.mcpServers);
+      if (serverKeys.length !== 1) {
+        return res.status(400).json({ 
+          error: 'Expected exactly one server in mcpServers object' 
+        });
+      }
+      serverName = serverKeys[0];
+      server = requestData.mcpServers[serverName];
+    } else if (requestData.name) {
+      // Legacy format: {name: "serverName", url: "...", ...}
       serverName = requestData.name;
       server = { ...requestData };
       delete server.name;
     } else {
-      // New Claude Desktop format: {"serverName": {url: "...", ...}}
+      // Single server format: {"serverName": {url: "...", ...}}
       const keys = Object.keys(requestData);
       if (keys.length !== 1) {
         return res.status(400).json({ 
-          error: 'Invalid format. Expected either {name: "...", ...config} or {"serverName": {...config}}' 
+          error: 'Invalid format. Expected Claude Desktop format with mcpServers object' 
         });
       }
       serverName = keys[0];

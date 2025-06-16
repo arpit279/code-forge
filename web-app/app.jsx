@@ -620,19 +620,31 @@ function ChatApp() {
                 defaultValue={mcpJson}
                 onChange={handleMcpJsonChange}
                 placeholder='Examples:
-Claude Desktop format:
+
+Full Claude Desktop format:
 {
-  "my-server": {
-    "url": "http://localhost:3000/mcp",
-    "enabled": true
+  "mcpServers": {
+    "salesforce": {
+      "command": "npx",
+      "args": [
+        "mcp-remote",
+        "http://localhost:8000/mcp"
+      ]
+    }
   }
 }
 
-Or simple format:
+Single server format:
+{
+  "my-server": {
+    "url": "http://localhost:3000/mcp"
+  }
+}
+
+Legacy format:
 {
   "name": "my-server",
-  "url": "http://localhost:3000/mcp",
-  "enabled": true
+  "url": "http://localhost:3000/mcp"
 }'
               />
               {mcpError && <div className="error">{mcpError}</div>}
