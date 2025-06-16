@@ -21,8 +21,10 @@ function ChatApp() {
   const [mcpServers, setMcpServers] = React.useState([]);
   const [tools, setTools] = React.useState([]);
   const [editing, setEditing] = React.useState(null);
+  const [isLoading, setIsLoading] = React.useState(false);
   const editorRef = React.useRef(null);
   const inputRef = React.useRef(null);
+  const messagesRef = React.useRef(null);
 
   React.useEffect(() => {
     async function fetchModels() {
@@ -113,17 +115,48 @@ function ChatApp() {
   const sendMessage = async () => {
     const text = input.trim();
     if (!text && attachments.length === 0) return;
+    if (isLoading) return; // Prevent multiple requests
+    
     const fileText = attachments
       .map((f) => `\n[File: ${f.name}]\n${f.data}`)
       .join('\n');
     const prompt = text + fileText;
     const userMsg = { sender: 'user', text, attachments: attachments.map(a => a.name) };
+    
+    // Add user message immediately
     setConversations((cs) => {
       const updated = [...cs];
       updated[current].messages = [...updated[current].messages, userMsg];
       return updated;
     });
+    
     setInput('');
+    setIsLoading(true);
+    
+    // Add thinking message for models that process/reason
+    const thinkingModels = ['llama3', 'deepseek', 'qwen', 'claude']; // Add model names that show thinking
+    const shouldShowThinking = thinkingModels.some(modelName => model.toLowerCase().includes(modelName.toLowerCase()));
+    
+    if (shouldShowThinking) {
+      const thinkingMsg = {
+        sender: 'bot',
+        text: '',
+        isThinking: true,
+      };
+      setConversations((cs) => {
+        const updated = [...cs];
+        updated[current].messages = [...updated[current].messages, thinkingMsg];
+        return updated;
+      });
+    }
+    
+    // Scroll to bottom to show user message and thinking animation
+    setTimeout(() => {
+      if (messagesRef.current) {
+        messagesRef.current.scrollTop = messagesRef.current.scrollHeight;
+      }
+    }, 100);
+    
     try {
       const res = await fetch(API_URL, {
         method: 'POST',
@@ -146,23 +179,44 @@ function ChatApp() {
         think: thinkParts.join('\n'),
         showThink: false,
       };
+      
       setConversations((cs) => {
         const updated = [...cs];
-        updated[current].messages = [...updated[current].messages, botMsg];
+        // Remove thinking message if it exists and replace with actual response
+        const messages = updated[current].messages;
+        if (shouldShowThinking && messages[messages.length - 1]?.isThinking) {
+          messages[messages.length - 1] = botMsg;
+        } else {
+          messages.push(botMsg);
+        }
         return updated;
       });
     } catch (err) {
       setConversations((cs) => {
         const updated = [...cs];
-        updated[current].messages = [
-          ...updated[current].messages,
-          { sender: 'bot', text: 'Error contacting Ollama: ' + err },
-        ];
+        const errorMsg = { sender: 'bot', text: 'Error contacting Ollama: ' + err };
+        
+        // Remove thinking message if it exists and replace with error
+        const messages = updated[current].messages;
+        if (shouldShowThinking && messages[messages.length - 1]?.isThinking) {
+          messages[messages.length - 1] = errorMsg;
+        } else {
+          messages.push(errorMsg);
+        }
         return updated;
       });
     }
+    
+    setIsLoading(false);
     setAttachments([]);
     inputRef.current.focus();
+    
+    // Scroll to bottom to show response
+    setTimeout(() => {
+      if (messagesRef.current) {
+        messagesRef.current.scrollTop = messagesRef.current.scrollHeight;
+      }
+    }, 100);
   };
 
   const newChat = () => {
@@ -279,14 +333,25 @@ function ChatApp() {
             ))}
           </div>
         )}
-        <div className="messages">
+        <div className="messages" ref={messagesRef}>
           {messages.map((m, i) => (
-            <div key={i} className={`message ${m.sender}`}>
-              <strong>{m.sender === 'user' ? 'You:' : 'Bot:'}</strong>
-              <span
-                className="msg-text"
-                dangerouslySetInnerHTML={{ __html: marked.parse(m.text) }}
-              />
+            <div key={i} className={`message ${m.sender} ${m.isThinking ? 'thinking-message' : ''}`}>
+              {m.sender === 'user' && <strong>You:</strong>}
+              {m.isThinking ? (
+                <div className="thinking-animation">
+                  <span className="thinking-text">Thinking</span>
+                  <div className="thinking-dots">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                  </div>
+                </div>
+              ) : (
+                <span
+                  className="msg-text"
+                  dangerouslySetInnerHTML={{ __html: marked.parse(m.text) }}
+                />
+              )}
               {m.attachments && m.attachments.length > 0 && (
                 <div className="msg-files">
                   {m.attachments.map((a, j) => (
@@ -323,12 +388,15 @@ function ChatApp() {
             value={input}
             ref={inputRef}
             placeholder="Ask something..."
+            disabled={isLoading}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter') sendMessage();
+              if (e.key === 'Enter' && !isLoading) sendMessage();
             }}
           />
-          <button onClick={sendMessage}>Send</button>
+          <button onClick={sendMessage} disabled={isLoading}>
+            {isLoading ? 'Sending...' : 'Send'}
+          </button>
         </div>
         {attachments.length > 0 && (
           <div className="attachment-list">
