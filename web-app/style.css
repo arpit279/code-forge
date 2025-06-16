@@ -462,6 +462,59 @@ body.dark .tool:hover {
   background: rgba(15, 118, 110, 0.2);
 }
 
+.mcp-tools-panel {
+  margin-bottom: 16px;
+  padding: 12px;
+  background: rgba(13, 148, 136, 0.05);
+  border-radius: 12px;
+  border: 1px solid rgba(13, 148, 136, 0.1);
+}
+
+body.dark .mcp-tools-panel {
+  background: rgba(15, 118, 110, 0.05);
+  border-color: rgba(15, 118, 110, 0.1);
+}
+
+.mcp-tools-label {
+  display: block;
+  font-weight: 600;
+  font-size: 13px;
+  margin-bottom: 8px;
+  color: #0d9488;
+}
+
+body.dark .mcp-tools-label {
+  color: #14b8a6;
+}
+
+.mcp-tool {
+  display: inline-block;
+  background: rgba(13, 148, 136, 0.15);
+  padding: 4px 10px;
+  border-radius: 16px;
+  margin-right: 6px;
+  margin-bottom: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  border: 1px solid rgba(13, 148, 136, 0.25);
+  transition: all 0.2s ease;
+}
+
+.mcp-tool:hover {
+  background: rgba(13, 148, 136, 0.25);
+  transform: translateY(-1px);
+}
+
+body.dark .mcp-tool {
+  background: rgba(15, 118, 110, 0.15);
+  color: #e2e8f0;
+  border-color: rgba(15, 118, 110, 0.25);
+}
+
+body.dark .mcp-tool:hover {
+  background: rgba(15, 118, 110, 0.25);
+}
+
 .code-block-wrapper {
   position: relative;
   margin: 12px 0;

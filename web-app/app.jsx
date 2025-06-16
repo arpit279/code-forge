@@ -20,6 +20,7 @@ function ChatApp() {
   const [mcpError, setMcpError] = React.useState('');
   const [mcpServers, setMcpServers] = React.useState([]);
   const [tools, setTools] = React.useState([]);
+  const [mcpTools, setMcpTools] = React.useState([]);
   const [editing, setEditing] = React.useState(null);
   const [mcpTesting, setMcpTesting] = React.useState(false);
   const [connectionStatus, setConnectionStatus] = React.useState(null);
@@ -59,7 +60,19 @@ function ChatApp() {
         console.error('Failed to load MCP config', err);
       }
     }
+    
+    async function fetchMcpTools() {
+      try {
+        const res = await fetch('/api/mcp-tools');
+        const data = await res.json();
+        setMcpTools(data.tools || []);
+      } catch (err) {
+        console.error('Failed to load MCP tools', err);
+      }
+    }
+    
     fetchMcp();
+    fetchMcpTools();
   }, []);
 
   React.useEffect(() => {
@@ -104,6 +117,11 @@ function ChatApp() {
       setMcpJson('');
       setMcpError('');
       setEditing(null);
+      
+      // Refresh MCP tools
+      const toolsRes = await fetch('/api/mcp-tools');
+      const toolsData = await toolsRes.json();
+      setMcpTools(toolsData.tools || []);
       
       // Only close modal if connection was successful or user wants to save anyway
       if (data.connectionTest && data.connectionTest.success) {
@@ -299,13 +317,58 @@ function ChatApp() {
     }, 100);
     
     try {
+      // Prepare the request body with MCP tools if available
+      const requestBody = { model, prompt, stream: false };
+      
+      // Add tools if MCP tools are available and model supports them
+      if (mcpTools.length > 0 && model.toLowerCase().includes('tools')) {
+        requestBody.tools = mcpTools;
+      }
+      
       const res = await fetch(API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model, prompt, stream: false }),
+        body: JSON.stringify(requestBody),
       });
       const data = await res.json();
       let responseText = data.response || 'No response';
+      
+      // Check if the response contains tool calls
+      if (data.message && data.message.tool_calls) {
+        // Handle tool calls
+        let toolResults = [];
+        for (const toolCall of data.message.tool_calls) {
+          try {
+            const toolRes = await fetch('/api/mcp-execute', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                toolName: toolCall.function.name,
+                parameters: JSON.parse(toolCall.function.arguments || '{}')
+              })
+            });
+            const toolData = await toolRes.json();
+            toolResults.push({
+              name: toolCall.function.name,
+              result: toolData.result || toolData.error
+            });
+          } catch (err) {
+            toolResults.push({
+              name: toolCall.function.name,
+              result: `Error executing tool: ${err.message}`
+            });
+          }
+        }
+        
+        // Add tool results to response
+        if (toolResults.length > 0) {
+          responseText += '\n\n**Tool Results:**\n';
+          toolResults.forEach(result => {
+            responseText += `- **${result.name}**: ${result.result}\n`;
+          });
+        }
+      }
+      
       const thinkParts = [];
       const thinkRegex = /<think>([\s\S]*?)<\/think>/gi;
       let m;
@@ -402,6 +465,11 @@ function ChatApp() {
       const configRes = await fetch('/api/mcp-config');
       const configData = await configRes.json();
       setMcpServers(configData.servers);
+      
+      // Refresh MCP tools
+      const toolsRes = await fetch('/api/mcp-tools');
+      const toolsData = await toolsRes.json();
+      setMcpTools(toolsData.tools || []);
       
     } catch (err) {
       setConnectionStatus({
@@ -506,6 +574,14 @@ function ChatApp() {
           <div className="tools-panel">
             {tools.map((t, idx) => (
               <span key={idx} className="tool">{t.name || t}</span>
+            ))}
+          </div>
+        )}
+        {mcpTools.length > 0 && (
+          <div className="mcp-tools-panel">
+            <span className="mcp-tools-label">🔧 MCP Tools Available ({mcpTools.length}):</span>
+            {mcpTools.map((tool, idx) => (
+              <span key={idx} className="mcp-tool">{tool.function.name}</span>
             ))}
           </div>
         )}

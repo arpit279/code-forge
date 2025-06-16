@@ -350,6 +350,103 @@ app.delete('/api/mcp-config/:name', (req, res) => {
   }
 });
 
+// New endpoint to get MCP tools for enabled servers
+app.get('/api/mcp-tools', async (req, res) => {
+  try {
+    const cfg = readConfig();
+    const enabledServers = Object.entries(cfg.mcpServers || {})
+      .filter(([name, server]) => server.enabled && server.connectionStatus === 'connected');
+    
+    const tools = [];
+    
+    for (const [serverName, server] of enabledServers) {
+      try {
+        // For now, we'll use a simplified tool discovery
+        // In a full implementation, you'd query the MCP server for available tools
+        if (server.tools && Array.isArray(server.tools)) {
+          server.tools.forEach(tool => {
+            tools.push({
+              type: "function",
+              function: {
+                name: `${serverName}_${typeof tool === 'string' ? tool : tool.name}`,
+                description: `Tool from ${serverName} MCP server: ${typeof tool === 'string' ? tool : tool.description || tool.name}`,
+                parameters: {
+                  type: "object",
+                  properties: {
+                    query: {
+                      type: "string",
+                      description: "The query or action to perform"
+                    }
+                  },
+                  required: ["query"]
+                }
+              }
+            });
+          });
+        } else {
+          // Default tool if no specific tools are defined
+          tools.push({
+            type: "function",
+            function: {
+              name: `${serverName}_execute`,
+              description: `Execute action using ${serverName} MCP server`,
+              parameters: {
+                type: "object",
+                properties: {
+                  action: {
+                    type: "string",
+                    description: "The action to perform"
+                  },
+                  query: {
+                    type: "string", 
+                    description: "The query or parameters for the action"
+                  }
+                },
+                required: ["action"]
+              }
+            }
+          });
+        }
+      } catch (err) {
+        console.error(`Error getting tools from ${serverName}:`, err);
+      }
+    }
+    
+    res.json({ tools });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// New endpoint to execute MCP tool calls
+app.post('/api/mcp-execute', async (req, res) => {
+  try {
+    const { toolName, parameters } = req.body;
+    
+    // Extract server name from tool name
+    const serverName = toolName.split('_')[0];
+    const cfg = readConfig();
+    const server = cfg.mcpServers[serverName];
+    
+    if (!server || !server.enabled) {
+      return res.status(404).json({ error: 'Server not found or disabled' });
+    }
+    
+    // For now, return a mock response
+    // In a full implementation, you'd call the actual MCP server
+    const result = {
+      success: true,
+      result: `Executed ${toolName} with parameters: ${JSON.stringify(parameters)}`,
+      serverName: serverName,
+      toolName: toolName
+    };
+    
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.use(express.static(path.join(__dirname)));
 
 app.listen(PORT, () => {
