@@ -7,7 +7,7 @@ if (window.pdfjsLib) {
 
 function ChatApp() {
   const [conversations, setConversations] = React.useState([
-    { id: 1, messages: [] },
+    { id: 1, name: 'New Chat', messages: [] },
   ]);
   const [current, setCurrent] = React.useState(0);
   const [input, setInput] = React.useState('');
@@ -112,6 +112,43 @@ function ChatApp() {
     }
   }, [mcpModalOpen]);
 
+  const generateConversationName = (userText) => {
+    // Handle empty or very short text
+    if (!userText || userText.trim().length < 3) {
+      return 'New Chat';
+    }
+    
+    // Remove common words and extract key terms
+    const stopWords = ['what', 'how', 'why', 'when', 'where', 'who', 'can', 'could', 'would', 'should', 'is', 'are', 'am', 'was', 'were', 'be', 'been', 'being', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could', 'should', 'may', 'might', 'must', 'shall', 'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'this', 'that', 'these', 'those', 'i', 'you', 'he', 'she', 'it', 'we', 'they', 'me', 'him', 'her', 'us', 'them', 'my', 'your', 'his', 'her', 'its', 'our', 'their', 'tell', 'show', 'give', 'get', 'make', 'help', 'please', 'thanks', 'hello', 'hi'];
+    
+    // Clean and split the text
+    const words = userText
+      .toLowerCase()
+      .replace(/[^\w\s]/g, '') // Remove punctuation
+      .split(/\s+/)
+      .filter(word => word.length > 2 && !stopWords.includes(word));
+    
+    // If no meaningful words found, try to use first few words of original text
+    if (words.length === 0) {
+      const firstWords = userText.trim().split(/\s+/).slice(0, 3);
+      const title = firstWords
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+        .join(' ');
+      return title.length > 25 ? title.substring(0, 22) + '...' : title;
+    }
+    
+    // Take first 3-4 meaningful words
+    const keyWords = words.slice(0, 4);
+    
+    // Capitalize first letter of each word
+    const title = keyWords
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
+    
+    // Limit title length for display
+    return title.length > 25 ? title.substring(0, 22) + '...' : title;
+  };
+
   const sendMessage = async () => {
     const text = input.trim();
     if (!text && attachments.length === 0) return;
@@ -123,10 +160,17 @@ function ChatApp() {
     const prompt = text + fileText;
     const userMsg = { sender: 'user', text, attachments: attachments.map(a => a.name) };
     
-    // Add user message immediately
+    // Add user message immediately and name conversation if it's the first message
     setConversations((cs) => {
       const updated = [...cs];
-      updated[current].messages = [...updated[current].messages, userMsg];
+      const currentConversation = updated[current];
+      currentConversation.messages = [...currentConversation.messages, userMsg];
+      
+      // If this is the first message, generate a name for the conversation
+      if (currentConversation.messages.length === 1) {
+        currentConversation.name = generateConversationName(text);
+      }
+      
       return updated;
     });
     
@@ -222,7 +266,7 @@ function ChatApp() {
   };
 
   const newChat = () => {
-    setConversations((cs) => [...cs, { id: cs.length + 1, messages: [] }]);
+    setConversations((cs) => [...cs, { id: cs.length + 1, name: 'New Chat', messages: [] }]);
     setCurrent(conversations.length);
     setInput('');
     inputRef.current.focus();
@@ -304,8 +348,9 @@ function ChatApp() {
             key={c.id}
             className={`history-item ${i === current ? 'active' : ''}`}
             onClick={() => setCurrent(i)}
+            title={c.name} // Show full name on hover
           >
-            {`Chat ${c.id}`}
+            {c.name}
           </div>
         ))}
       </div>

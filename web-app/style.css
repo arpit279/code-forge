@@ -113,6 +113,10 @@ body.dark .new-chat-icon:hover {
   font-weight: 400;
   font-size: 14px;
   border: 1px solid transparent;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.4;
 }
 
 .history-item:hover {
