@@ -650,138 +650,201 @@ app.post('/api/mcp-execute', async (req, res) => {
   }
 });
 
-// Enhanced chat endpoint with sophisticated MCP integration and intelligent query refinement
+// Chat endpoint with MCP tool integration
 app.post('/api/chat', async (req, res) => {
   try {
-    const { messages, model, sessionId = 'default' } = req.body;
+    const { messages, model, tools } = req.body;
+    
+    // Get available MCP tools
+    const cfg = readConfig();
+    const enabledServers = Object.entries(cfg.mcpServers || {})
+      .filter(([name, server]) => server.enabled && server.connectionStatus === 'connected');
+    
+    const availableTools = [];
+    for (const [serverName, server] of enabledServers) {
+      try {
+        const toolsResponse = await communicateWithMcpServer(server, 'tools/list');
+        if (toolsResponse.result && toolsResponse.result.tools) {
+          toolsResponse.result.tools.forEach(tool => {
+            availableTools.push({
+              serverName,
+              name: tool.name,
+              description: tool.description || `Tool ${tool.name} from ${serverName}`,
+              inputSchema: tool.inputSchema || {}
+            });
+          });
+        }
+      } catch (err) {
+        console.log(`Could not get tools from ${serverName}:`, err.message);
+      }
+    }
+    
+    // Prepare enhanced prompt with tool information
     const lastMessage = messages[messages.length - 1];
-    const userInput = lastMessage.content;
+    let enhancedPrompt = lastMessage.content;
     
-    console.log(`🤖 Processing chat request with sophisticated MCP system (session: ${sessionId})`);
-    
-    // Process input through sophisticated MCP system with query refinement
-    const mcpResponse = await mcpSystem.processInput(userInput, sessionId, {
-      model,
-      timeout: 25000,
-      enableQueryRefinement: true
-    });
-    
-    // Handle disambiguation if needed
-    if (mcpResponse.needsDisambiguation) {
-      return res.json({
-        response: 'I need clarification to better help you.',
-        disambiguation: mcpResponse.disambiguation,
-        model: model,
-        needsDisambiguation: true,
-        sessionId
-      });
-    }
-    
-    // If MCP system handled the request successfully
-    if (mcpResponse.success && mcpResponse.content) {
-      // Extract query refinement metadata if available
-      const queryRefinementInfo = [];
-      if (mcpResponse.metadata && mcpResponse.metadata.toolsUsed) {
-        mcpResponse.rawResponses?.forEach(resp => {
-          if (resp.metadata?.queryRefinement) {
-            const qr = resp.metadata.queryRefinement;
-            if (qr.attempts > 1) {
-              queryRefinementInfo.push({
-                tool: resp.toolName,
-                originalQuery: qr.originalQuery,
-                finalQuery: qr.finalQuery,
-                attempts: qr.attempts,
-                successfulStrategy: qr.successfulStrategy,
-                refinements: qr.refinements
-              });
+    if (availableTools.length > 0) {
+      enhancedPrompt += `\n\nYou have access to the following Salesforce tools:\n`;
+      availableTools.forEach(tool => {
+        enhancedPrompt += `- ${tool.name}: ${tool.description}\n`;
+        if (tool.inputSchema && tool.inputSchema.properties) {
+          enhancedPrompt += `  Required parameters: ${Object.keys(tool.inputSchema.properties).join(', ')}\n`;
+          Object.entries(tool.inputSchema.properties).forEach(([param, schema]) => {
+            let description = schema.description || schema.title || `${param} parameter`;
+            const typeInfo = schema.type || 'any';
+            if (schema.type === 'string' && param === 'fields') {
+              description += ' (comma-separated field names as a single string, e.g., "Name,Phone,Industry")';
             }
-          }
-        });
-      }
-      
-      // Make a call to Ollama with the processed information
-      let enhancedPrompt = `User question: ${userInput}\\n\\nMCP System Response:\\n${mcpResponse.content}`;
-      
-      // Add query refinement context if any queries were refined
-      if (queryRefinementInfo.length > 0) {
-        enhancedPrompt += '\\n\\n**Query Refinement Details:**\\n';
-        queryRefinementInfo.forEach(info => {
-          enhancedPrompt += `- Tool "${info.tool}" required ${info.attempts} attempts\\n`;
-          if (info.originalQuery !== info.finalQuery) {
-            enhancedPrompt += `  * Original: ${info.originalQuery}\\n`;
-            enhancedPrompt += `  * Final: ${info.finalQuery}\\n`;
-            enhancedPrompt += `  * Strategy: ${info.successfulStrategy}\\n`;
-          }
-        });
-      }
-      
-      enhancedPrompt += '\\n\\nPlease provide a natural, conversational response based on the above information.';
-      
-      const ollamaResponse = await fetch('http://localhost:11434/api/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: model,
-          prompt: enhancedPrompt,
-          stream: false
-        })
+            enhancedPrompt += `    - ${param} (${typeInfo}): ${description}\n`;
+          });
+        }
       });
-      
-      const ollamaData = await ollamaResponse.json();
-      let naturalResponse = ollamaData.response || mcpResponse.content;
-      
-      // Add query refinement summary if applicable
-      if (queryRefinementInfo.length > 0) {
-        naturalResponse += '\\n\\n*Note: Some queries were automatically refined for better results.*';
-      }
-      
-      return res.json({
-        response: naturalResponse,
-        model: model,
-        toolsUsed: true,
-        sophisticatedMCP: true,
-        mcpMetadata: mcpResponse.metadata,
-        citations: mcpResponse.citations,
-        richMedia: mcpResponse.richMedia,
-        queryRefinements: queryRefinementInfo,
-        sessionId
-      });
+      enhancedPrompt += `\n**IMPORTANT WORKFLOW GUIDELINES:**
+- To get account details by name: First use "query" tool with SOQL like "SELECT Id, Name FROM Account WHERE Name LIKE '%CompanyName%'" to find the Account ID, then use "get_record" with that ID
+- To search across objects: Use "search" tool with SOSL queries
+- Never guess Account IDs - always query first to get the correct ID
+- For get_record: object_name should be "Account" for account records
+
+If you need to use any of these tools, indicate which tool you would like to use and with what parameters in the format: USE_TOOL: {toolName} with parameters: {parameters as JSON}`;
     }
     
-    // Fallback to basic Ollama response if MCP system doesn't handle it
-    console.log('📝 Falling back to basic Ollama response');
-    
+    // Call Ollama
     const ollamaResponse = await fetch('http://localhost:11434/api/generate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model: model,
-        prompt: userInput,
+        prompt: enhancedPrompt,
         stream: false
       })
     });
     
     const ollamaData = await ollamaResponse.json();
-    const responseText = ollamaData.response || 'No response';
+    let responseText = ollamaData.response || 'No response';
+    
+    // Check if the response contains tool usage requests
+    const toolUsageRegex = /USE_TOOL:\s*([a-zA-Z0-9_]+)\s*with parameters:\s*(\{[\s\S]*?\})/gi;
+    let toolMatch;
+    const toolResults = [];
+    
+    // Process tool calls sequentially to allow chaining
+    const toolMatches = [];
+    let match;
+    while ((match = toolUsageRegex.exec(responseText)) !== null) {
+      toolMatches.push(match);
+    }
+    
+    for (const toolMatch of toolMatches) {
+      const [fullMatch, toolName, paramsStr] = toolMatch;
+      
+      try {
+        // Clean up the JSON string to handle common issues
+        let cleanParamsStr = paramsStr.trim();
+        
+        // Handle escaped quotes and newlines
+        cleanParamsStr = cleanParamsStr.replace(/\\"/g, '"').replace(/\n/g, '').replace(/\r/g, '');
+        
+        // Try to fix unterminated strings by adding missing quotes
+        if (cleanParamsStr.includes('"') && !cleanParamsStr.endsWith('"') && !cleanParamsStr.endsWith('"}')) {
+          cleanParamsStr += '"';
+        }
+        if (!cleanParamsStr.endsWith('}')) {
+          cleanParamsStr += '}';
+        }
+        
+        const parameters = JSON.parse(cleanParamsStr);
+        
+        // Find which server has this tool
+        let targetServer = null;
+        let targetServerName = null;
+        
+        for (const tool of availableTools) {
+          if (tool.name === toolName) {
+            targetServerName = tool.serverName;
+            targetServer = cfg.mcpServers[targetServerName];
+            break;
+          }
+        }
+        
+        if (targetServer && targetServer.enabled) {
+          const toolResponse = await communicateWithMcpServer(targetServer, 'tools/call', {
+            name: toolName,
+            arguments: parameters
+          });
+          
+          toolResults.push({
+            serverName: targetServerName,
+            toolName,
+            parameters,
+            result: toolResponse.result || toolResponse,
+            success: true
+          });
+        } else {
+          toolResults.push({
+            serverName: targetServerName || 'unknown',
+            toolName,
+            parameters,
+            result: `Tool ${toolName} not found or server disabled`,
+            success: false
+          });
+        }
+      } catch (err) {
+        toolResults.push({
+          serverName: 'unknown',
+          toolName,
+          parameters: paramsStr,
+          result: `Error executing tool: ${err.message}`,
+          success: false
+        });
+      }
+    }
+    
+    // Remove the tool usage requests from the response and add results
+    responseText = responseText.replace(toolUsageRegex, '').trim();
+    
+    if (toolResults.length > 0) {
+      responseText += '\n\n**Tool Execution Results:**\n';
+      toolResults.forEach(result => {
+        const status = result.success ? '✅' : '❌';
+        responseText += `${status} **${result.toolName}**: ${JSON.stringify(result.result)}\n`;
+      });
+      
+      // Make a second call to Ollama with the tool results to get a final response
+      const finalPrompt = `${lastMessage.content}\n\nTool results:\n${toolResults.map(r => `${r.toolName}: ${JSON.stringify(r.result)}`).join('\n')}\n\nBased on the above tool results, provide a comprehensive answer to the user's question.`;
+      
+      const finalResponse = await fetch('http://localhost:11434/api/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: model,
+          prompt: finalPrompt,
+          stream: false
+        })
+      });
+      
+      const finalData = await finalResponse.json();
+      if (finalData.response) {
+        responseText = finalData.response + '\n\n---\n**Tool Results Used:**\n';
+        toolResults.forEach(result => {
+          const status = result.success ? '✅' : '❌';
+          responseText += `${status} **${result.toolName}**: ${JSON.stringify(result.result, null, 2)}\n`;
+        });
+      }
+    }
     
     res.json({
       response: responseText,
       model: model,
-      toolsUsed: false,
-      sophisticatedMCP: false,
-      fallbackMode: true,
-      sessionId
+      toolsUsed: toolResults.length > 0,
+      toolResults: toolResults
     });
     
   } catch (err) {
-    console.error('💥 Chat error:', err);
-    res.status(500).json({ 
-      error: err.message,
-      sophisticatedMCP: false,
-      fallbackMode: false
-    });
+    console.error('Chat error:', err);
+    res.status(500).json({ error: err.message });
   }
 });
+
 // Debug endpoint to get detailed tool information
 app.get('/api/debug-tools', async (req, res) => {
   try {
@@ -866,79 +929,8 @@ app.post('/api/debug-mcp', async (req, res) => {
   }
 });
 
-// New endpoint to test query refinement with automatic retries
-app.post('/api/query-refine', async (req, res) => {
-  try {
-    const { query, queryType = 'salesforce_search', toolName } = req.body;
-    
-    if (!query) {
-      return res.status(400).json({ error: 'Query is required' });
-    }
-
-    let result;
-    
-    if (queryType === 'salesforce_search' || queryType === 'sosl') {
-      // Test SOSL search refinement
-      result = await mcpSystem.queryRefiner.executeSearch(query, toolName || 'salesforce_search');
-    } else if (queryType === 'soql') {
-      // Test SOQL query refinement
-      result = await mcpSystem.queryRefiner.executeQuery(query, toolName || 'salesforce_query');
-    } else {
-      return res.status(400).json({ error: 'Invalid queryType. Use "salesforce_search", "sosl", or "soql"' });
-    }
-
-    res.json({
-      ...result,
-      queryRefinementStats: mcpSystem.queryRefiner.getStats()
-    });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// Endpoint to get query refinement statistics and learning data
-app.get('/api/query-stats', async (req, res) => {
-  try {
-    const stats = mcpSystem.queryRefiner.getStats();
-    res.json(stats);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// Enhanced endpoint to get comprehensive MCP system statistics
-app.get('/api/mcp-stats', async (req, res) => {
-  try {
-    const stats = mcpSystem.getSystemStats();
-    res.json(stats);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// Enhanced natural language processing endpoint
-app.post('/api/nlp-process', async (req, res) => {
-  try {
-    const { input, sessionId = 'default' } = req.body;
-    const availableTools = mcpSystem.toolManager.getTools({ enabled: true });
-    
-    const results = await mcpSystem.nlpProcessor.processInput(input, sessionId, availableTools);
-    res.json(results);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
 app.use(express.static(path.join(__dirname)));
 
-app.listen(PORT, async () => {
+app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
-  console.log('🚀 Sophisticated MCP system with query refinement initialized');
-  
-  try {
-    await mcpSystem.initializeSystem();
-    console.log('🎉 MCP system ready with intelligent query refinement!');
-  } catch (error) {
-    console.error('❌ Failed to initialize MCP system:', error);
-  }
 });
