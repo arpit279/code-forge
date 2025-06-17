@@ -317,56 +317,26 @@ function ChatApp() {
     }, 100);
     
     try {
-      // Prepare the request body with MCP tools if available
-      const requestBody = { model, prompt, stream: false };
+      // Use the new chat endpoint that handles MCP tool integration
+      const messages = [
+        { role: 'user', content: prompt }
+      ];
       
-      // Add tools if MCP tools are available and model supports them
-      if (mcpTools.length > 0 && model.toLowerCase().includes('tools')) {
-        requestBody.tools = mcpTools;
-      }
-      
-      const res = await fetch(API_URL, {
+      const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestBody),
+        body: JSON.stringify({
+          messages: messages,
+          model: model,
+          tools: mcpTools.length > 0 ? mcpTools : undefined
+        }),
       });
       const data = await res.json();
       let responseText = data.response || 'No response';
       
-      // Check if the response contains tool calls
-      if (data.message && data.message.tool_calls) {
-        // Handle tool calls
-        let toolResults = [];
-        for (const toolCall of data.message.tool_calls) {
-          try {
-            const toolRes = await fetch('/api/mcp-execute', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                toolName: toolCall.function.name,
-                parameters: JSON.parse(toolCall.function.arguments || '{}')
-              })
-            });
-            const toolData = await toolRes.json();
-            toolResults.push({
-              name: toolCall.function.name,
-              result: toolData.result || toolData.error
-            });
-          } catch (err) {
-            toolResults.push({
-              name: toolCall.function.name,
-              result: `Error executing tool: ${err.message}`
-            });
-          }
-        }
-        
-        // Add tool results to response
-        if (toolResults.length > 0) {
-          responseText += '\n\n**Tool Results:**\n';
-          toolResults.forEach(result => {
-            responseText += `- **${result.name}**: ${result.result}\n`;
-          });
-        }
+      // If tools were used, the response already includes tool results
+      if (data.toolsUsed) {
+        console.log('Tools were used in this response:', data.toolResults);
       }
       
       const thinkParts = [];

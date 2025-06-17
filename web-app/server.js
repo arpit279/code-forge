@@ -376,8 +376,42 @@ async function communicateWithMcpServer(server, method, params = {}) {
         throw new Error(`HTTP ${response.status}: ${errorText}`);
       }
       
-      const data = await response.json();
-      return data;
+      // Check content type to determine how to parse the response
+      const contentType = response.headers.get('content-type') || '';
+      
+      if (contentType.includes('text/event-stream')) {
+        // Handle SSE response
+        const text = await response.text();
+        
+        // Parse SSE format to extract JSON data
+        const lines = text.split('\n');
+        let jsonData = null;
+        
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const dataStr = line.substring(6).trim();
+              if (dataStr && dataStr !== '[DONE]') {
+                jsonData = JSON.parse(dataStr);
+                break;
+              }
+            } catch (parseErr) {
+              // Continue looking for valid JSON in other lines
+              continue;
+            }
+          }
+        }
+        
+        if (jsonData) {
+          return jsonData;
+        } else {
+          throw new Error('No valid JSON found in SSE response');
+        }
+      } else {
+        // Handle regular JSON response
+        const data = await response.json();
+        return data;
+      }
     } catch (err) {
       console.error(`MCP communication error: ${err.message}`);
       throw err;
@@ -564,6 +598,152 @@ app.post('/api/mcp-execute', async (req, res) => {
       });
     }
   } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Chat endpoint with MCP tool integration
+app.post('/api/chat', async (req, res) => {
+  try {
+    const { messages, model, tools } = req.body;
+    
+    // Get available MCP tools
+    const cfg = readConfig();
+    const enabledServers = Object.entries(cfg.mcpServers || {})
+      .filter(([name, server]) => server.enabled && server.connectionStatus === 'connected');
+    
+    const availableTools = [];
+    for (const [serverName, server] of enabledServers) {
+      try {
+        const toolsResponse = await communicateWithMcpServer(server, 'tools/list');
+        if (toolsResponse.result && toolsResponse.result.tools) {
+          toolsResponse.result.tools.forEach(tool => {
+            availableTools.push({
+              serverName,
+              name: tool.name,
+              description: tool.description || `Tool ${tool.name} from ${serverName}`,
+              inputSchema: tool.inputSchema || {}
+            });
+          });
+        }
+      } catch (err) {
+        console.log(`Could not get tools from ${serverName}:`, err.message);
+      }
+    }
+    
+    // Prepare enhanced prompt with tool information
+    const lastMessage = messages[messages.length - 1];
+    let enhancedPrompt = lastMessage.content;
+    
+    if (availableTools.length > 0) {
+      enhancedPrompt += `\n\nYou have access to the following tools:\n`;
+      availableTools.forEach(tool => {
+        enhancedPrompt += `- ${tool.serverName}_${tool.name}: ${tool.description}\n`;
+      });
+      enhancedPrompt += `\nIf you need to use any of these tools to answer the question, please indicate which tool you would like to use and with what parameters in the format: USE_TOOL: {serverName}_{toolName} with parameters: {parameters as JSON}`;
+    }
+    
+    // Call Ollama
+    const ollamaResponse = await fetch('http://localhost:11434/api/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: model,
+        prompt: enhancedPrompt,
+        stream: false
+      })
+    });
+    
+    const ollamaData = await ollamaResponse.json();
+    let responseText = ollamaData.response || 'No response';
+    
+    // Check if the response contains tool usage requests
+    const toolUsageRegex = /USE_TOOL:\s*([a-zA-Z0-9_]+)_([a-zA-Z0-9_]+)\s*with parameters:\s*(\{[^}]*\})/gi;
+    let toolMatch;
+    const toolResults = [];
+    
+    while ((toolMatch = toolUsageRegex.exec(responseText)) !== null) {
+      const [fullMatch, serverName, toolName, paramsStr] = toolMatch;
+      
+      try {
+        const parameters = JSON.parse(paramsStr);
+        const server = cfg.mcpServers[serverName];
+        
+        if (server && server.enabled) {
+          const toolResponse = await communicateWithMcpServer(server, 'tools/call', {
+            name: toolName,
+            arguments: parameters
+          });
+          
+          toolResults.push({
+            serverName,
+            toolName,
+            parameters,
+            result: toolResponse.result || toolResponse,
+            success: true
+          });
+        } else {
+          toolResults.push({
+            serverName,
+            toolName,
+            parameters,
+            result: `Server ${serverName} not found or disabled`,
+            success: false
+          });
+        }
+      } catch (err) {
+        toolResults.push({
+          serverName,
+          toolName,
+          parameters: paramsStr,
+          result: `Error executing tool: ${err.message}`,
+          success: false
+        });
+      }
+    }
+    
+    // Remove the tool usage requests from the response and add results
+    responseText = responseText.replace(toolUsageRegex, '').trim();
+    
+    if (toolResults.length > 0) {
+      responseText += '\n\n**Tool Execution Results:**\n';
+      toolResults.forEach(result => {
+        const status = result.success ? '✅' : '❌';
+        responseText += `${status} **${result.serverName}_${result.toolName}**: ${JSON.stringify(result.result)}\n`;
+      });
+      
+      // Make a second call to Ollama with the tool results to get a final response
+      const finalPrompt = `${lastMessage.content}\n\nTool results:\n${toolResults.map(r => `${r.serverName}_${r.toolName}: ${JSON.stringify(r.result)}`).join('\n')}\n\nBased on the above tool results, provide a comprehensive answer to the user's question.`;
+      
+      const finalResponse = await fetch('http://localhost:11434/api/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: model,
+          prompt: finalPrompt,
+          stream: false
+        })
+      });
+      
+      const finalData = await finalResponse.json();
+      if (finalData.response) {
+        responseText = finalData.response + '\n\n---\n**Tool Results Used:**\n';
+        toolResults.forEach(result => {
+          const status = result.success ? '✅' : '❌';
+          responseText += `${status} **${result.serverName}_${result.toolName}**: ${JSON.stringify(result.result, null, 2)}\n`;
+        });
+      }
+    }
+    
+    res.json({
+      response: responseText,
+      model: model,
+      toolsUsed: toolResults.length > 0,
+      toolResults: toolResults
+    });
+    
+  } catch (err) {
+    console.error('Chat error:', err);
     res.status(500).json({ error: err.message });
   }
 });
