@@ -8,6 +8,7 @@ const { NLPProcessor } = require('./nlp-processor');
 const { ToolManager } = require('./tool-manager');
 const { ResponseProcessor } = require('./response-processor');
 const { ErrorHandler } = require('./error-handler');
+const { MCPQueryRefiner } = require('./query-refiner');
 const EventEmitter = require('events');
 const crypto = require('crypto');
 
@@ -30,6 +31,11 @@ class MCPSystem extends EventEmitter {
     this.toolManager = new ToolManager(this.options.toolManager || {});
     this.responseProcessor = new ResponseProcessor(this.options.responseProcessor || {});
     this.errorHandler = new ErrorHandler(this.options.errorHandler || {});
+    this.queryRefiner = new MCPQueryRefiner(this, this.options.queryRefiner || {
+      maxRetries: 5,
+      retryDelay: 500,
+      enableLearning: true
+    });
 
     // State management
     this.sessions = new Map();
@@ -144,8 +150,8 @@ class MCPSystem extends EventEmitter {
         toolSuggestions = this.simpleToolMatching(input);
       }
 
-      // Execute tool calls
-      const toolResults = await this.executeToolCalls(toolSuggestions, requestId, options);
+      // Execute tool calls with intelligent refinement
+      const toolResults = await this.executeToolCallsWithRefinement(toolSuggestions, requestId, options);
 
       // Process responses
       const finalResponse = await this.responseProcessor.processToolResponses(
@@ -196,7 +202,54 @@ class MCPSystem extends EventEmitter {
   }
 
   /**
-   * Execute tool calls with batching and concurrency control
+   * Execute tool calls with intelligent query refinement
+   */
+  async executeToolCallsWithRefinement(toolSuggestions, requestId, options = {}) {
+    if (!toolSuggestions || toolSuggestions.length === 0) {
+      return [];
+    }
+
+    const results = [];
+
+    for (const suggestion of toolSuggestions) {
+      const toolCall = {
+        toolName: suggestion.tool.fullName || `${suggestion.tool.serverName}_${suggestion.tool.name}`,
+        parameters: suggestion.parameters || {},
+        options: {
+          timeout: options.toolTimeout || this.options.requestTimeout,
+          ...options
+        }
+      };
+
+      try {
+        // Check if this is a Salesforce search/query tool that can benefit from refinement
+        if (this.isSalesforceQueryTool(toolCall.toolName, toolCall.parameters)) {
+          const refinedResult = await this.executeWithQueryRefinement(toolCall);
+          results.push(refinedResult);
+        } else {
+          // Regular tool execution
+          const result = await this.errorHandler.executeWithRetry(
+            () => this.mcpCore.callTool(toolCall.toolName, toolCall.parameters, toolCall.options),
+            `tool_call_${toolCall.toolName}_${requestId}`,
+            { timeout: toolCall.options.timeout }
+          );
+          results.push(result);
+        }
+      } catch (error) {
+        results.push({
+          success: false,
+          error: error.message,
+          toolName: toolCall.toolName,
+          originalParameters: toolCall.parameters
+        });
+      }
+    }
+
+    return results;
+  }
+
+  /**
+   * Execute tool calls with batching and concurrency control (original method)
    */
   async executeToolCalls(toolSuggestions, requestId, options = {}) {
     if (!toolSuggestions || toolSuggestions.length === 0) {
@@ -312,6 +365,99 @@ class MCPSystem extends EventEmitter {
   }
 
   /**
+   * Check if a tool is a Salesforce query tool that can benefit from refinement
+   */
+  isSalesforceQueryTool(toolName, parameters) {
+    const salesforceTools = ['search', 'query', 'sosl', 'soql'];
+    const hasQueryParam = parameters.sosl_query || parameters.soql_query || parameters.query;
+    
+    return toolName.toLowerCase().includes('salesforce') && 
+           (salesforceTools.some(tool => toolName.toLowerCase().includes(tool)) || hasQueryParam);
+  }
+
+  /**
+   * Execute tool with query refinement
+   */
+  async executeWithQueryRefinement(toolCall) {
+    const { toolName, parameters } = toolCall;
+    
+    try {
+      // Determine query type and execute with refinement
+      if (parameters.sosl_query) {
+        // SOSL search refinement
+        const searchTerm = this.extractSearchTerm(parameters.sosl_query);
+        if (searchTerm) {
+          const result = await this.queryRefiner.executeSearch(searchTerm, toolName);
+          return this.formatRefinementResult(result, toolCall);
+        }
+      } else if (parameters.soql_query) {
+        // SOQL query refinement
+        const result = await this.queryRefiner.executeQuery(parameters.soql_query, toolName);
+        return this.formatRefinementResult(result, toolCall);
+      } else if (parameters.query) {
+        // Generic query - try as search first
+        const result = await this.queryRefiner.executeSearch(parameters.query, toolName);
+        return this.formatRefinementResult(result, toolCall);
+      }
+    } catch (error) {
+      console.log(`Query refinement failed for ${toolName}, falling back to regular execution:`, error.message);
+    }
+
+    // Fallback to regular execution
+    return await this.errorHandler.executeWithRetry(
+      () => this.mcpCore.callTool(toolName, parameters, toolCall.options),
+      `tool_call_${toolName}_${Date.now()}`,
+      { timeout: toolCall.options.timeout }
+    );
+  }
+
+  /**
+   * Extract search term from SOSL query
+   */
+  extractSearchTerm(soslQuery) {
+    const match = soslQuery.match(/FIND\s*\{([^}]+)\}/i);
+    return match ? match[1].trim() : null;
+  }
+
+  /**
+   * Format refinement result for consistency
+   */
+  formatRefinementResult(refinementResult, originalToolCall) {
+    if (refinementResult.success) {
+      return {
+        success: true,
+        result: refinementResult.result.result || refinementResult.result,
+        toolName: originalToolCall.toolName,
+        metadata: {
+          ...refinementResult.result.metadata,
+          queryRefinement: {
+            originalQuery: refinementResult.originalQuery,
+            finalQuery: refinementResult.finalQuery,
+            attempts: refinementResult.attempts,
+            refinements: refinementResult.refinements,
+            successfulStrategy: refinementResult.successfulStrategy
+          }
+        }
+      };
+    } else {
+      return {
+        success: false,
+        error: refinementResult.error,
+        toolName: originalToolCall.toolName,
+        metadata: {
+          queryRefinement: {
+            originalQuery: refinementResult.originalQuery,
+            finalQuery: refinementResult.finalQuery,
+            attempts: refinementResult.attempts,
+            refinements: refinementResult.refinements,
+            allAttempts: refinementResult.allAttempts
+          }
+        }
+      };
+    }
+  }
+
+  /**
    * Get or create session
    */
   getOrCreateSession(sessionId) {
@@ -381,11 +527,13 @@ class MCPSystem extends EventEmitter {
     const mcpStats = this.mcpCore.getStats();
     const toolStats = this.toolManager.getSystemStats();
     const errorStats = this.errorHandler.getErrorStats();
+    const queryRefinementStats = this.queryRefiner.getStats();
 
     return {
       mcp: mcpStats,
       tools: toolStats,
       errors: errorStats,
+      queryRefinement: queryRefinementStats,
       sessions: {
         total: this.sessions.size,
         active: Array.from(this.sessions.values()).filter(s => 
@@ -399,7 +547,7 @@ class MCPSystem extends EventEmitter {
       system: {
         uptime: Date.now() - this.startTime,
         memoryUsage: process.memoryUsage(),
-        version: '1.0.0'
+        version: '1.1.0'
       }
     };
   }
