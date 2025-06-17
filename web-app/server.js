@@ -4,12 +4,60 @@ const path = require('path');
 const { spawn } = require('child_process');
 const http = require('http');
 const https = require('https');
+const { MCPSystem } = require('./lib/mcp-system');
 
 const app = express();
 app.use(express.json());
 
 const CONFIG_PATH = path.join(__dirname, '..', 'mcp-config.json');
 const PORT = 3000;
+
+// Initialize the sophisticated MCP system
+const mcpSystem = new MCPSystem({
+  enableNLP: true,
+  enableCaching: true,
+  enableBatching: true,
+  requestTimeout: 30000,
+  maxConcurrentRequests: 5,
+  nlp: {
+    confidenceThreshold: 0.6,
+    maxSuggestions: 3
+  },
+  toolManager: {
+    healthCheckInterval: 60000,
+    maxRetries: 3
+  },
+  responseProcessor: {
+    maxResponseLength: 15000,
+    enableCaching: true
+  },
+  errorHandler: {
+    maxRetries: 3,
+    retryDelay: 1000,
+    circuitBreakerThreshold: 5
+  }
+});
+
+// Setup MCP system event handlers
+mcpSystem.on('systemInitialized', () => {
+  console.log('🚀 Sophisticated MCP system initialized');
+});
+
+mcpSystem.on('serverRegistered', ({ name, tools }) => {
+  console.log(`📡 MCP server '${name}' registered with ${tools.length} tools`);
+});
+
+mcpSystem.on('toolUsed', ({ toolId, userId, executionTime, success }) => {
+  console.log(`🔧 Tool ${toolId} executed in ${executionTime}ms (${success ? 'success' : 'failed'})`);
+});
+
+mcpSystem.on('circuitBreakerOpened', ({ operationId, error }) => {
+  console.log(`⚡ Circuit breaker opened for ${operationId}: ${error.message}`);
+});
+
+mcpSystem.on('systemError', (error) => {
+  console.error('❌ MCP system error:', error);
+});
 
 function readConfig() {
   if (!fs.existsSync(CONFIG_PATH)) {
@@ -636,11 +684,28 @@ app.post('/api/chat', async (req, res) => {
     let enhancedPrompt = lastMessage.content;
     
     if (availableTools.length > 0) {
-      enhancedPrompt += `\n\nYou have access to the following tools:\n`;
+      enhancedPrompt += `\n\nYou have access to the following Salesforce tools:\n`;
       availableTools.forEach(tool => {
-        enhancedPrompt += `- ${tool.serverName}_${tool.name}: ${tool.description}\n`;
+        enhancedPrompt += `- ${tool.name}: ${tool.description}\n`;
+        if (tool.inputSchema && tool.inputSchema.properties) {
+          enhancedPrompt += `  Required parameters: ${Object.keys(tool.inputSchema.properties).join(', ')}\n`;
+          Object.entries(tool.inputSchema.properties).forEach(([param, schema]) => {
+            let description = schema.description || schema.title || `${param} parameter`;
+            const typeInfo = schema.type || 'any';
+            if (schema.type === 'string' && param === 'fields') {
+              description += ' (comma-separated field names as a single string, e.g., "Name,Phone,Industry")';
+            }
+            enhancedPrompt += `    - ${param} (${typeInfo}): ${description}\n`;
+          });
+        }
       });
-      enhancedPrompt += `\nIf you need to use any of these tools to answer the question, please indicate which tool you would like to use and with what parameters in the format: USE_TOOL: {serverName}_{toolName} with parameters: {parameters as JSON}`;
+      enhancedPrompt += `\n**IMPORTANT WORKFLOW GUIDELINES:**
+- To get account details by name: First use "query" tool with SOQL like "SELECT Id, Name FROM Account WHERE Name LIKE '%CompanyName%'" to find the Account ID, then use "get_record" with that ID
+- To search across objects: Use "search" tool with SOSL queries
+- Never guess Account IDs - always query first to get the correct ID
+- For get_record: object_name should be "Account" for account records
+
+If you need to use any of these tools, indicate which tool you would like to use and with what parameters in the format: USE_TOOL: {toolName} with parameters: {parameters as JSON}`;
     }
     
     // Call Ollama
@@ -658,25 +723,57 @@ app.post('/api/chat', async (req, res) => {
     let responseText = ollamaData.response || 'No response';
     
     // Check if the response contains tool usage requests
-    const toolUsageRegex = /USE_TOOL:\s*([a-zA-Z0-9_]+)_([a-zA-Z0-9_]+)\s*with parameters:\s*(\{[^}]*\})/gi;
+    const toolUsageRegex = /USE_TOOL:\s*([a-zA-Z0-9_]+)\s*with parameters:\s*(\{[\s\S]*?\})/gi;
     let toolMatch;
     const toolResults = [];
     
-    while ((toolMatch = toolUsageRegex.exec(responseText)) !== null) {
-      const [fullMatch, serverName, toolName, paramsStr] = toolMatch;
+    // Process tool calls sequentially to allow chaining
+    const toolMatches = [];
+    let match;
+    while ((match = toolUsageRegex.exec(responseText)) !== null) {
+      toolMatches.push(match);
+    }
+    
+    for (const toolMatch of toolMatches) {
+      const [fullMatch, toolName, paramsStr] = toolMatch;
       
       try {
-        const parameters = JSON.parse(paramsStr);
-        const server = cfg.mcpServers[serverName];
+        // Clean up the JSON string to handle common issues
+        let cleanParamsStr = paramsStr.trim();
         
-        if (server && server.enabled) {
-          const toolResponse = await communicateWithMcpServer(server, 'tools/call', {
+        // Handle escaped quotes and newlines
+        cleanParamsStr = cleanParamsStr.replace(/\\"/g, '"').replace(/\n/g, '').replace(/\r/g, '');
+        
+        // Try to fix unterminated strings by adding missing quotes
+        if (cleanParamsStr.includes('"') && !cleanParamsStr.endsWith('"') && !cleanParamsStr.endsWith('"}')) {
+          cleanParamsStr += '"';
+        }
+        if (!cleanParamsStr.endsWith('}')) {
+          cleanParamsStr += '}';
+        }
+        
+        const parameters = JSON.parse(cleanParamsStr);
+        
+        // Find which server has this tool
+        let targetServer = null;
+        let targetServerName = null;
+        
+        for (const tool of availableTools) {
+          if (tool.name === toolName) {
+            targetServerName = tool.serverName;
+            targetServer = cfg.mcpServers[targetServerName];
+            break;
+          }
+        }
+        
+        if (targetServer && targetServer.enabled) {
+          const toolResponse = await communicateWithMcpServer(targetServer, 'tools/call', {
             name: toolName,
             arguments: parameters
           });
           
           toolResults.push({
-            serverName,
+            serverName: targetServerName,
             toolName,
             parameters,
             result: toolResponse.result || toolResponse,
@@ -684,16 +781,16 @@ app.post('/api/chat', async (req, res) => {
           });
         } else {
           toolResults.push({
-            serverName,
+            serverName: targetServerName || 'unknown',
             toolName,
             parameters,
-            result: `Server ${serverName} not found or disabled`,
+            result: `Tool ${toolName} not found or server disabled`,
             success: false
           });
         }
       } catch (err) {
         toolResults.push({
-          serverName,
+          serverName: 'unknown',
           toolName,
           parameters: paramsStr,
           result: `Error executing tool: ${err.message}`,
@@ -709,11 +806,11 @@ app.post('/api/chat', async (req, res) => {
       responseText += '\n\n**Tool Execution Results:**\n';
       toolResults.forEach(result => {
         const status = result.success ? '✅' : '❌';
-        responseText += `${status} **${result.serverName}_${result.toolName}**: ${JSON.stringify(result.result)}\n`;
+        responseText += `${status} **${result.toolName}**: ${JSON.stringify(result.result)}\n`;
       });
       
       // Make a second call to Ollama with the tool results to get a final response
-      const finalPrompt = `${lastMessage.content}\n\nTool results:\n${toolResults.map(r => `${r.serverName}_${r.toolName}: ${JSON.stringify(r.result)}`).join('\n')}\n\nBased on the above tool results, provide a comprehensive answer to the user's question.`;
+      const finalPrompt = `${lastMessage.content}\n\nTool results:\n${toolResults.map(r => `${r.toolName}: ${JSON.stringify(r.result)}`).join('\n')}\n\nBased on the above tool results, provide a comprehensive answer to the user's question.`;
       
       const finalResponse = await fetch('http://localhost:11434/api/generate', {
         method: 'POST',
@@ -730,7 +827,7 @@ app.post('/api/chat', async (req, res) => {
         responseText = finalData.response + '\n\n---\n**Tool Results Used:**\n';
         toolResults.forEach(result => {
           const status = result.success ? '✅' : '❌';
-          responseText += `${status} **${result.serverName}_${result.toolName}**: ${JSON.stringify(result.result, null, 2)}\n`;
+          responseText += `${status} **${result.toolName}**: ${JSON.stringify(result.result, null, 2)}\n`;
         });
       }
     }
@@ -744,6 +841,42 @@ app.post('/api/chat', async (req, res) => {
     
   } catch (err) {
     console.error('Chat error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Debug endpoint to get detailed tool information
+app.get('/api/debug-tools', async (req, res) => {
+  try {
+    const cfg = readConfig();
+    const enabledServers = Object.entries(cfg.mcpServers || {})
+      .filter(([name, server]) => server.enabled && server.connectionStatus === 'connected');
+    
+    const toolDetails = [];
+    for (const [serverName, server] of enabledServers) {
+      try {
+        const toolsResponse = await communicateWithMcpServer(server, 'tools/list');
+        if (toolsResponse.result && toolsResponse.result.tools) {
+          toolsResponse.result.tools.forEach(tool => {
+            toolDetails.push({
+              serverName,
+              toolName: tool.name,
+              description: tool.description,
+              inputSchema: tool.inputSchema,
+              fullTool: tool
+            });
+          });
+        }
+      } catch (err) {
+        toolDetails.push({
+          serverName,
+          error: err.message
+        });
+      }
+    }
+    
+    res.json({ toolDetails });
+  } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
