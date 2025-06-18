@@ -361,7 +361,7 @@ body.dark .bot {
   background: rgba(13, 148, 136, 0.1);
   border: 1px solid rgba(13, 148, 136, 0.2);
   transition: all 0.3s ease;
-  color: #000000 !important;
+  color: #374151;
   box-shadow: none !important;
 }
 
@@ -374,7 +374,7 @@ body.dark .bot {
 body.dark .mode-toggle {
   background: rgba(15, 118, 110, 0.1);
   border-color: rgba(15, 118, 110, 0.2);
-  color: #000000 !important;
+  color: #e2e8f0;
 }
 
 body.dark .mode-toggle:hover {
@@ -391,6 +391,7 @@ body.dark .mode-toggle:hover {
   padding: 12px 20px;
   border-radius: 12px;
   transition: all 0.3s ease;
+  color: #374151;
   box-shadow: none !important;
 }
 
@@ -403,6 +404,7 @@ body.dark .mode-toggle:hover {
 body.dark .mcp-button {
   background: rgba(15, 118, 110, 0.1);
   border-color: rgba(15, 118, 110, 0.2);
+  color: #e2e8f0;
 }
 
 body.dark .mcp-button:hover {
