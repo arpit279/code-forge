@@ -828,15 +828,16 @@ body.dark .modal {
   width: 100%;
   height: 180px;
   border: 2px solid rgba(13, 148, 136, 0.2);
-  border-radius: 12px;
+  border-radius: 8px;
   padding: 16px;
-  font-family: inherit;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
   font-size: 14px;
   resize: vertical;
   transition: all 0.3s ease;
   outline: none;
-  background: rgba(255, 255, 255, 0.8);
+  background: rgba(255, 255, 255, 0.9);
   backdrop-filter: blur(10px);
+  color: #374151;
 }
 
 .modal textarea:focus {
@@ -845,7 +846,7 @@ body.dark .modal {
 }
 
 body.dark .modal textarea {
-  background: rgba(26, 26, 26, 0.8);
+  background: rgba(26, 26, 26, 0.9);
   border-color: rgba(15, 118, 110, 0.3);
   color: #e2e8f0;
 }
@@ -853,6 +854,91 @@ body.dark .modal textarea {
 body.dark .modal textarea:focus {
   border-color: rgba(15, 118, 110, 0.6);
   box-shadow: 0 0 0 4px rgba(15, 118, 110, 0.1);
+}
+
+/* CodeMirror styling for cuboidal appearance and dark mode */
+.CodeMirror {
+  border: 2px solid rgba(13, 148, 136, 0.2);
+  border-radius: 8px !important;
+  height: 180px;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: 14px;
+  background: rgba(255, 255, 255, 0.9) !important;
+  color: #374151 !important;
+}
+
+.CodeMirror:focus-within {
+  border-color: rgba(13, 148, 136, 0.6);
+  box-shadow: 0 0 0 4px rgba(13, 148, 136, 0.1);
+}
+
+.CodeMirror-scroll {
+  padding: 16px;
+}
+
+.CodeMirror-gutters {
+  display: none !important;
+}
+
+.CodeMirror-cursor {
+  border-left: 2px solid #374151 !important;
+}
+
+/* Dark mode CodeMirror styling */
+body.dark .CodeMirror {
+  background: rgba(26, 26, 26, 0.9) !important;
+  border-color: rgba(15, 118, 110, 0.3);
+  color: #e2e8f0 !important;
+}
+
+body.dark .CodeMirror:focus-within {
+  border-color: rgba(15, 118, 110, 0.6);
+  box-shadow: 0 0 0 4px rgba(15, 118, 110, 0.1);
+}
+
+body.dark .CodeMirror-cursor {
+  border-left: 2px solid #e2e8f0 !important;
+}
+
+body.dark .cm-string {
+  color: #a7f3d0 !important;
+}
+
+body.dark .cm-number {
+  color: #fbbf24 !important;
+}
+
+body.dark .cm-keyword {
+  color: #60a5fa !important;
+}
+
+body.dark .cm-property {
+  color: #e2e8f0 !important;
+}
+
+body.dark .cm-punctuation {
+  color: #94a3b8 !important;
+}
+
+/* Light mode CodeMirror syntax highlighting */
+.cm-string {
+  color: #059669 !important;
+}
+
+.cm-number {
+  color: #d97706 !important;
+}
+
+.cm-keyword {
+  color: #2563eb !important;
+}
+
+.cm-property {
+  color: #374151 !important;
+}
+
+.cm-punctuation {
+  color: #64748b !important;
 }
 
 .modal .error {

@@ -151,7 +151,8 @@ function ChatApp() {
     if (mcpModalOpen && editorRef.current) {
       const cm = CodeMirror.fromTextArea(editorRef.current, {
         mode: 'application/json',
-        lineNumbers: true,
+        lineNumbers: false,
+        theme: 'default',
       });
       cm.on('change', (cmInstance) => {
         handleMcpJsonChange({ target: { value: cmInstance.getValue() } });
