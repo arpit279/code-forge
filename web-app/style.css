@@ -85,7 +85,7 @@ body.dark .history-title {
 .new-chat-icon:hover {
   background: rgba(13, 148, 136, 0.2);
   transform: scale(1.1);
-  box-shadow: 0 4px 12px rgba(13, 148, 136, 0.3);
+  box-shadow: none !important;
 }
 
 .new-chat-icon:active {
@@ -100,7 +100,7 @@ body.dark .new-chat-icon {
 
 body.dark .new-chat-icon:hover {
   background: rgba(15, 118, 110, 0.2);
-  box-shadow: 0 4px 12px rgba(15, 118, 110, 0.3);
+  box-shadow: none !important;
 }
 
 
@@ -253,38 +253,38 @@ button {
   font-size: 14px;
   font-family: inherit;
   transition: all 0.3s ease;
-  box-shadow: 0 4px 15px rgba(13, 148, 136, 0.3);
+  box-shadow: none !important;
   outline: none;
 }
 
 button:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 25px rgba(13, 148, 136, 0.4);
+  box-shadow: none !important;
 }
 
 button:active {
   transform: translateY(0);
-  box-shadow: 0 4px 15px rgba(13, 148, 136, 0.3);
+  box-shadow: none !important;
 }
 
 body.dark button {
   background: linear-gradient(135deg, #0f766e 0%, #134e4a 100%);
-  box-shadow: 0 4px 15px rgba(15, 118, 110, 0.3);
+  box-shadow: none !important;
 }
 
 body.dark button:hover {
-  box-shadow: 0 8px 25px rgba(15, 118, 110, 0.4);
+  box-shadow: none !important;
 }
 
 button:disabled {
   opacity: 0.6;
   cursor: not-allowed;
   transform: none !important;
-  box-shadow: 0 4px 15px rgba(13, 148, 136, 0.2) !important;
+  box-shadow: none !important;
 }
 
 body.dark button:disabled {
-  box-shadow: 0 4px 15px rgba(15, 118, 110, 0.2) !important;
+  box-shadow: none !important;
 }
 
 input[type="text"]:disabled {
@@ -356,21 +356,25 @@ body.dark .bot {
 
 .mode-toggle {
   margin-left: 16px;
-  padding: 8px;
+  padding: 8px 16px;
   border-radius: 12px;
   background: rgba(13, 148, 136, 0.1);
   border: 1px solid rgba(13, 148, 136, 0.2);
   transition: all 0.3s ease;
+  color: #000000 !important;
+  box-shadow: none !important;
 }
 
 .mode-toggle:hover {
   background: rgba(13, 148, 136, 0.2);
   transform: scale(1.05);
+  box-shadow: none !important;
 }
 
 body.dark .mode-toggle {
   background: rgba(15, 118, 110, 0.1);
   border-color: rgba(15, 118, 110, 0.2);
+  color: #000000 !important;
 }
 
 body.dark .mode-toggle:hover {
@@ -382,15 +386,18 @@ body.dark .mode-toggle:hover {
   background: rgba(13, 148, 136, 0.1);
   border: 1px solid rgba(13, 148, 136, 0.2);
   cursor: pointer;
-  font-size: 1.2em;
-  padding: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  padding: 12px 20px;
   border-radius: 12px;
   transition: all 0.3s ease;
+  box-shadow: none !important;
 }
 
 .mcp-button:hover {
   background: rgba(13, 148, 136, 0.2);
   transform: scale(1.05);
+  box-shadow: none !important;
 }
 
 body.dark .mcp-button {
@@ -566,7 +573,7 @@ code {
 .copy-code-button:hover {
   background: rgba(13, 148, 136, 0.2);
   transform: scale(1.05);
-  box-shadow: 0 2px 8px rgba(13, 148, 136, 0.3);
+  box-shadow: none !important;
 }
 
 .copy-code-button:active {
@@ -581,7 +588,7 @@ body.dark .copy-code-button {
 
 body.dark .copy-code-button:hover {
   background: rgba(15, 118, 110, 0.25);
-  box-shadow: 0 2px 8px rgba(15, 118, 110, 0.4);
+  box-shadow: none !important;
 }
 
 .thinking-block {
@@ -861,6 +868,13 @@ body.dark .modal textarea:focus {
   justify-content: flex-end;
 }
 
+.modal-buttons button {
+  min-width: 120px;
+  padding: 12px 20px;
+  font-size: 14px;
+  box-shadow: none !important;
+}
+
 .server-list {
   margin-bottom: 20px;
 }
@@ -927,16 +941,19 @@ body.dark .connection-message {
 }
 
 .test-button {
-  padding: 4px 8px;
-  font-size: 12px;
+  padding: 8px 16px;
+  font-size: 14px;
   font-weight: 500;
   background: rgba(13, 148, 136, 0.1);
   border: 1px solid rgba(13, 148, 136, 0.2);
   color: #0d9488;
+  min-width: 70px;
+  box-shadow: none !important;
 }
 
 .test-button:hover {
   background: rgba(13, 148, 136, 0.2);
+  box-shadow: none !important;
 }
 
 body.dark .test-button {
@@ -1007,9 +1024,11 @@ body.dark .save-anyway-button:hover {
 
 .server-item button {
   margin-left: 8px;
-  padding: 6px 12px;
-  font-size: 12px;
+  padding: 8px 16px;
+  font-size: 14px;
   font-weight: 500;
+  min-width: 70px;
+  box-shadow: none !important;
 }
 
 .modal-header {
@@ -1049,7 +1068,7 @@ body.dark .modal-header h2 {
 .close-button:hover {
   background: rgba(239, 68, 68, 0.2);
   transform: scale(1.05);
-  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);
+  box-shadow: none !important;
 }
 
 .close-button:active {
@@ -1063,7 +1082,7 @@ body.dark .close-button {
 
 body.dark .close-button:hover {
   background: rgba(239, 68, 68, 0.25);
-  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.4);
+  box-shadow: none !important;
 }
 
 .mcp-toggle-section {

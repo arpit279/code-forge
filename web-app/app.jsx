@@ -538,7 +538,7 @@ function ChatApp() {
             {darkMode ? 'Light Mode' : 'Dark Mode'}
           </button>
           <button className="mcp-button" onClick={() => setMcpModalOpen(true)}>
-            ⚙
+            MCP
           </button>
         </div>
         {tools.length > 0 && (
