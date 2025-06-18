@@ -25,6 +25,7 @@ function ChatApp() {
   const [mcpTesting, setMcpTesting] = React.useState(false);
   const [connectionStatus, setConnectionStatus] = React.useState(null);
   const [isLoading, setIsLoading] = React.useState(false);
+  const [mcpEnabled, setMcpEnabled] = React.useState(true);
   const editorRef = React.useRef(null);
   const inputRef = React.useRef(null);
   const messagesRef = React.useRef(null);
@@ -328,7 +329,7 @@ function ChatApp() {
         body: JSON.stringify({
           messages: messages,
           model: model,
-          tools: mcpTools.length > 0 ? mcpTools : undefined
+          tools: mcpEnabled && mcpTools.length > 0 ? mcpTools : undefined
         }),
       });
       const data = await res.json();
@@ -547,7 +548,7 @@ function ChatApp() {
             ))}
           </div>
         )}
-        {mcpTools.length > 0 && (
+        {mcpEnabled && mcpTools.length > 0 && (
           <div className="mcp-tools-panel">
             <span className="mcp-tools-label">🔧 MCP Tools Available ({mcpTools.length}):</span>
             {mcpTools.map((tool, idx) => (
@@ -630,7 +631,33 @@ function ChatApp() {
         {mcpModalOpen && (
           <div className="modal-overlay">
             <div className="modal">
-              <h2>MCP Server Configuration</h2>
+              <div className="modal-header">
+                <h2>MCP Server Configuration</h2>
+                <button 
+                  className="close-button"
+                  onClick={() => { 
+                    setMcpModalOpen(false); 
+                    setMcpJson(''); 
+                    setEditing(null); 
+                    setMcpError(''); 
+                    setConnectionStatus(null);
+                  }}
+                  title="Close"
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="mcp-toggle-section">
+                <label className="mcp-toggle-label">
+                  <input
+                    type="checkbox"
+                    checked={mcpEnabled}
+                    onChange={(e) => setMcpEnabled(e.target.checked)}
+                    className="mcp-toggle-checkbox"
+                  />
+                  <span className="mcp-toggle-text">Enable MCP Tools</span>
+                </label>
+              </div>
               <div className="server-list">
                 {mcpServers.map((s) => (
                   <div key={s.name} className="server-item">
