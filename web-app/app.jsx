@@ -508,7 +508,7 @@ function ChatApp() {
         <div className="history-header">
           <h3 className="history-title">History</h3>
           <button className="new-chat-icon" onClick={newChat} title="New Chat">
-            📝
+            💬
           </button>
         </div>
         {conversations.map((c, i) => (
@@ -603,7 +603,7 @@ function ChatApp() {
         </div>
         <div className="input-row">
           <label className="attach-button">
-            📎
+            📁
             <input type="file" multiple onChange={handleFiles} style={{ display: 'none' }} />
           </label>
           <input
