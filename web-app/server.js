@@ -655,27 +655,32 @@ app.post('/api/chat', async (req, res) => {
   try {
     const { messages, model, tools } = req.body;
     
-    // Get available MCP tools
-    const cfg = readConfig();
-    const enabledServers = Object.entries(cfg.mcpServers || {})
-      .filter(([name, server]) => server.enabled && server.connectionStatus === 'connected');
-    
+    // Only get MCP tools if tools are explicitly provided in the request
+    // This respects the frontend toggle - when disabled, tools will be undefined
     const availableTools = [];
-    for (const [serverName, server] of enabledServers) {
-      try {
-        const toolsResponse = await communicateWithMcpServer(server, 'tools/list');
-        if (toolsResponse.result && toolsResponse.result.tools) {
-          toolsResponse.result.tools.forEach(tool => {
-            availableTools.push({
-              serverName,
-              name: tool.name,
-              description: tool.description || `Tool ${tool.name} from ${serverName}`,
-              inputSchema: tool.inputSchema || {}
+    
+    if (tools && tools.length > 0) {
+      // Get available MCP tools
+      const cfg = readConfig();
+      const enabledServers = Object.entries(cfg.mcpServers || {})
+        .filter(([name, server]) => server.enabled && server.connectionStatus === 'connected');
+      
+      for (const [serverName, server] of enabledServers) {
+        try {
+          const toolsResponse = await communicateWithMcpServer(server, 'tools/list');
+          if (toolsResponse.result && toolsResponse.result.tools) {
+            toolsResponse.result.tools.forEach(tool => {
+              availableTools.push({
+                serverName,
+                name: tool.name,
+                description: tool.description || `Tool ${tool.name} from ${serverName}`,
+                inputSchema: tool.inputSchema || {}
+              });
             });
-          });
+          }
+        } catch (err) {
+          console.log(`Could not get tools from ${serverName}:`, err.message);
         }
-      } catch (err) {
-        console.log(`Could not get tools from ${serverName}:`, err.message);
       }
     }
     
@@ -683,7 +688,7 @@ app.post('/api/chat', async (req, res) => {
     const lastMessage = messages[messages.length - 1];
     let enhancedPrompt = lastMessage.content;
     
-    if (availableTools.length > 0) {
+    if (availableTools.length > 0 && tools && tools.length > 0) {
       enhancedPrompt += `\n\nYou have access to the following Salesforce tools:\n`;
       availableTools.forEach(tool => {
         enhancedPrompt += `- ${tool.name}: ${tool.description}\n`;
@@ -722,16 +727,18 @@ If you need to use any of these tools, indicate which tool you would like to use
     const ollamaData = await ollamaResponse.json();
     let responseText = ollamaData.response || 'No response';
     
-    // Check if the response contains tool usage requests
+    // Check if the response contains tool usage requests (only if tools are enabled)
     const toolUsageRegex = /USE_TOOL:\s*([a-zA-Z0-9_]+)\s*with parameters:\s*(\{[\s\S]*?\})/gi;
     let toolMatch;
     const toolResults = [];
     
-    // Process tool calls sequentially to allow chaining
+    // Only process tool calls if tools are enabled (tools parameter is provided)
     const toolMatches = [];
-    let match;
-    while ((match = toolUsageRegex.exec(responseText)) !== null) {
-      toolMatches.push(match);
+    if (tools && tools.length > 0 && availableTools.length > 0) {
+      let match;
+      while ((match = toolUsageRegex.exec(responseText)) !== null) {
+        toolMatches.push(match);
+      }
     }
     
     for (const toolMatch of toolMatches) {
@@ -766,7 +773,7 @@ If you need to use any of these tools, indicate which tool you would like to use
           }
         }
         
-        if (targetServer && targetServer.enabled) {
+        if (targetServer && targetServer.enabled && tools && tools.length > 0) {
           const toolResponse = await communicateWithMcpServer(targetServer, 'tools/call', {
             name: toolName,
             arguments: parameters
