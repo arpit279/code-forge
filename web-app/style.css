@@ -113,10 +113,111 @@ body.dark .new-chat-icon:hover {
   font-weight: 400;
   font-size: 14px;
   border: 1px solid transparent;
+  line-height: 1.4;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  position: relative;
+}
+
+.conversation-name {
+  flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  line-height: 1.4;
+  margin-right: 8px;
+}
+
+.conversation-menu {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.menu-dots {
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 16px;
+  line-height: 1;
+  opacity: 0;
+  transition: all 0.2s ease;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: none !important;
+}
+
+.history-item:hover .menu-dots {
+  opacity: 1;
+}
+
+.menu-dots:hover {
+  background: rgba(13, 148, 136, 0.1);
+  transform: none;
+  box-shadow: none !important;
+}
+
+body.dark .menu-dots:hover {
+  background: rgba(15, 118, 110, 0.1);
+}
+
+.dropdown-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 1000;
+  min-width: 120px;
+  padding: 4px 0;
+  margin-top: 4px;
+}
+
+body.dark .dropdown-menu {
+  background: rgba(26, 26, 26, 0.95);
+  border-color: rgba(255, 255, 255, 0.1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.delete-option {
+  width: 100%;
+  padding: 8px 12px;
+  border: none;
+  background: none;
+  color: #ef4444;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: left;
+  border-radius: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s ease;
+  box-shadow: none !important;
+}
+
+.delete-option:hover {
+  background: rgba(239, 68, 68, 0.1);
+  transform: none;
+  box-shadow: none !important;
+}
+
+body.dark .delete-option {
+  color: #f87171;
+}
+
+body.dark .delete-option:hover {
+  background: rgba(239, 68, 68, 0.15);
 }
 
 .history-item:hover {

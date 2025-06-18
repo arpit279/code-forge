@@ -26,6 +26,7 @@ function ChatApp() {
   const [connectionStatus, setConnectionStatus] = React.useState(null);
   const [isLoading, setIsLoading] = React.useState(false);
   const [mcpEnabled, setMcpEnabled] = React.useState(true);
+  const [dropdownOpen, setDropdownOpen] = React.useState(null);
   const editorRef = React.useRef(null);
   const inputRef = React.useRef(null);
   const messagesRef = React.useRef(null);
@@ -79,6 +80,18 @@ function ChatApp() {
   React.useEffect(() => {
     document.body.classList.toggle('dark', darkMode);
   }, [darkMode]);
+
+  // Close dropdown when clicking outside
+  React.useEffect(() => {
+    const handleClickOutside = () => {
+      setDropdownOpen(null);
+    };
+    
+    if (dropdownOpen !== null) {
+      document.addEventListener('click', handleClickOutside);
+      return () => document.removeEventListener('click', handleClickOutside);
+    }
+  }, [dropdownOpen]);
 
   const addMcpServer = async () => {
     try {
@@ -398,10 +411,48 @@ function ChatApp() {
   };
 
   const newChat = () => {
+    // Check if current conversation is empty (no messages)
+    const currentConversation = conversations[current];
+    if (currentConversation && currentConversation.messages.length === 0) {
+      // If current conversation is empty, just focus on input instead of creating new
+      inputRef.current.focus();
+      return;
+    }
+    
+    // Create new conversation only if current one has messages
     setConversations((cs) => [...cs, { id: cs.length + 1, name: 'New Chat', messages: [] }]);
     setCurrent(conversations.length);
     setInput('');
     inputRef.current.focus();
+  };
+
+  const deleteConversation = (indexToDelete, e) => {
+    e.stopPropagation(); // Prevent triggering the conversation selection
+    
+    if (conversations.length <= 1) {
+      // If only one conversation, reset it instead of deleting
+      setConversations([{ id: 1, name: 'New Chat', messages: [] }]);
+      setCurrent(0);
+    } else {
+      // Remove the conversation
+      setConversations((cs) => cs.filter((_, index) => index !== indexToDelete));
+      
+      // Adjust current index if needed
+      if (indexToDelete === current) {
+        // If deleting current conversation, switch to previous or first
+        setCurrent(indexToDelete > 0 ? indexToDelete - 1 : 0);
+      } else if (indexToDelete < current) {
+        // If deleting conversation before current, adjust current index
+        setCurrent(current - 1);
+      }
+    }
+    
+    setDropdownOpen(null);
+  };
+
+  const toggleDropdown = (index, e) => {
+    e.stopPropagation();
+    setDropdownOpen(dropdownOpen === index ? null : index);
   };
 
   const deleteMcpServer = async (name) => {
@@ -519,7 +570,26 @@ function ChatApp() {
             onClick={() => setCurrent(i)}
             title={c.name} // Show full name on hover
           >
-            {c.name}
+            <span className="conversation-name">{c.name}</span>
+            <div className="conversation-menu">
+              <button 
+                className="menu-dots"
+                onClick={(e) => toggleDropdown(i, e)}
+                title="More options"
+              >
+                ⋮
+              </button>
+              {dropdownOpen === i && (
+                <div className="dropdown-menu">
+                  <button 
+                    className="delete-option"
+                    onClick={(e) => deleteConversation(i, e)}
+                  >
+                    🗑️ Delete
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         ))}
       </div>
